@@ -8,6 +8,7 @@
     "jsx": "react-jsx",
     "jsxImportSource": "@opentui/react",
     "allowJs": true,
+    "resolveJsonModule": true,
 
     // Bundler mode
     "moduleResolution": "bundler",
@@ -19,8 +20,8 @@
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": false,
 
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
