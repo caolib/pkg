@@ -23,4 +23,6 @@ bun dev          # 或 bun run src/index.tsx
 
 `s` 搜索 · `r` 刷新 · `u` 更新 · `d` 卸载 · `space` 勾选 · `f` 仅显示可更新 · `enter` 详情 · `Ctrl+C` 退出
 
+鼠标：单击表格行选中，双击查看详情。
+
 详见 `CLAUDE.md`。

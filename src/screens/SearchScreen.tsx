@@ -3,8 +3,8 @@
  *
  * 由顶栏「搜索」按钮打开的 overlay：并发搜索所有可用包管理器；相同 registry
  * 的管理器（如 npm/pnpm/bun）只搜一次（默认用 npm），不同 registry 各自搜索。
- * 结果按包名合并并标注来源管理器；回车/双击 = 弹管理器选择安装（这里简化为
- * 直接用代表管理器安装，或同组第一个），v 查看详情，Esc 返回。
+ * 结果按包名合并并标注来源管理器；回车/i 直接用代表管理器安装，
+ * v/双击查看详情，Esc 返回。
  * 对应原 Python 项目的 screens/search_screen.py。
  */
 
@@ -164,6 +164,13 @@ export function SearchScreen(props: SearchScreenProps) {
           cursor={cursor}
           visibleRows={20}
           emptyHint={loading ? t("detail.loading") : t("search.status_initial")}
+          onRowClick={(_, index) => {
+            focusTable()
+            setCursor(index)
+          }}
+          onRowDoubleClick={(row) =>
+            onView(row.rep, row.result.name, shownResultName(row.result))
+          }
         />
       </box>
       <box flexDirection="row" height={1} backgroundColor="#111" paddingLeft={1}>

@@ -232,8 +232,7 @@ export function App() {
   // ------------------------------------------------------------------
   // 行选中 → 详情
   // ------------------------------------------------------------------
-  function viewSelected() {
-    const row = rows[cursor]
+  function viewRow(row: InstalledRow | undefined) {
     if (!row) return
     const found = reg.findSelected(current, row.key)
     if (!found) {
@@ -247,6 +246,10 @@ export function App() {
       managerName: found.state.name,
       title: found.pkg.display_name || found.pkg.name,
     })
+  }
+
+  function viewSelected() {
+    viewRow(rows[cursor])
   }
 
   // ------------------------------------------------------------------
@@ -619,6 +622,11 @@ export function App() {
             checkColumnIndex={0}
             visibleRows={tableVisibleRows}
             emptyHint={t("search.status_no_results")}
+            onRowClick={(_, index) => {
+              exitFilterMode()
+              setCursor(index)
+            }}
+            onRowDoubleClick={(row) => viewRow(row)}
           />
         )}
       </box>

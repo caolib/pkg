@@ -8,15 +8,17 @@
  *  - 超过可见高度的行被裁剪，并自动滚动让光标行保持可见；
  *  - 单元格用 width 限定列宽、truncate 裁切超宽文本（无 ellipsis 字符）。
  *
- * 本组件只负责渲染（受控），不处理键盘——光标移动与选中由父组件统一
- * 通过 useKeyboard 分发，再回写 cursor / onSelect，避免多组件抢占键盘。
+ * 本组件负责渲染和行鼠标事件（单击/双击），键盘仍由父组件统一处理——
+ * 光标移动与选中通过 cursor / onRowClick 回写，避免多组件抢占键盘。
  *
  * 注意：OpenTUI 的 <text> 不支持 backgroundColor（只能用 bg），且不支持
  * ellipsis；行高亮放在 <box> 的 backgroundColor 上，宽度靠 width 限定。
  */
 
-import { TextAttributes } from "@opentui/core"
-import type { ReactNode } from "react"
+import { MouseButton, TextAttributes } from "@opentui/core"
+import { useRef, type ReactNode } from "react"
+
+const DOUBLE_CLICK_INTERVAL_MS = 400
 
 /** 一个列定义。 */
 export interface TableColumn<R> {
@@ -44,6 +46,10 @@ export interface PackageTableProps<R> {
   visibleRows?: number
   /** 空表格时显示的提示文案 */
   emptyHint?: string
+  /** 鼠标左键单击数据行 */
+  onRowClick?: (row: R, index: number) => void
+  /** 鼠标左键在限定时间内双击同一数据行 */
+  onRowDoubleClick?: (row: R, index: number) => void
 }
 
 export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
@@ -56,9 +62,16 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
     checkColumnIndex = 0,
     visibleRows = 0,
     emptyHint,
+    onRowClick,
+    onRowDoubleClick,
   } = props
 
+  const windowStartRef = useRef(0)
+  const lastClickRef = useRef<{ key: string; at: number } | null>(null)
+
   if (rows.length === 0) {
+    windowStartRef.current = 0
+    lastClickRef.current = null
     return (
       <box flexGrow={1} alignItems="center" justifyContent="center">
         <text fg="#888">{emptyHint ?? ""}</text>
@@ -68,9 +81,12 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
 
   // 计算滚动窗口：让光标行始终可见
   const viewHeight = visibleRows > 0 ? visibleRows : Math.max(rows.length, 1)
-  let windowStart = 0
-  if (cursor >= viewHeight) windowStart = cursor - viewHeight + 1
-  if (windowStart < 0) windowStart = 0
+  const maxWindowStart = Math.max(0, rows.length - viewHeight)
+  let windowStart = Math.min(windowStartRef.current, maxWindowStart)
+  if (cursor < windowStart) windowStart = cursor
+  else if (cursor >= windowStart + viewHeight) windowStart = cursor - viewHeight + 1
+  windowStart = Math.max(0, Math.min(windowStart, maxWindowStart))
+  windowStartRef.current = windowStart
   const windowEnd = Math.min(windowStart + viewHeight, rows.length)
   const visible = rows.slice(windowStart, windowEnd)
 
@@ -114,7 +130,26 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
     })
 
     return (
-      <box key={`r-${key}`} flexDirection="row" backgroundColor={rowBg}>
+      <box
+        key={`r-${key}`}
+        flexDirection="row"
+        backgroundColor={rowBg}
+        onMouseDown={(event) => {
+          if (event.button !== MouseButton.LEFT) return
+          event.stopPropagation()
+
+          onRowClick?.(row, globalIndex)
+
+          const now = performance.now()
+          const lastClick = lastClickRef.current
+          if (lastClick?.key === key && now - lastClick.at <= DOUBLE_CLICK_INTERVAL_MS) {
+            lastClickRef.current = null
+            onRowDoubleClick?.(row, globalIndex)
+          } else {
+            lastClickRef.current = { key, at: now }
+          }
+        }}
+      >
         {cells}
       </box>
     )
