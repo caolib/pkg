@@ -14,6 +14,7 @@
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/react"
 import { useState } from "react"
+import { ModalBackdrop } from "../components/ModalBackdrop"
 import { configPath } from "../config"
 import { isTextInputFocused } from "../focus"
 import { t, setLanguage, currentLanguage } from "../i18n"
@@ -149,6 +150,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
       st.available = false
       st.checked = true
     }
+    autoDisableMissing(name)
     rerender()
   }
 
@@ -162,7 +164,18 @@ export function SettingsScreen(props: SettingsScreenProps) {
         st.available = false
         st.checked = true
       }
+      autoDisableMissing(name)
       rerender()
+    }
+  }
+
+  /** 检测完成后：未安装的管理器自动禁用。 */
+  function autoDisableMissing(name: string) {
+    const st = reg.states.get(name)
+    if (!st || !st.checked) return
+    if (!st.available) {
+      st.disabled = true
+      reg.disabledManagers.add(name)
     }
   }
 
@@ -187,8 +200,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
   }
 
   return (
-    <box position="absolute" top={0} left={0} width="100%" height="100%" backgroundColor="rgba(0,0,0,0.5)" alignItems="center" justifyContent="center">
-      <box flexDirection="column" borderStyle="rounded" borderColor="#36c" backgroundColor="#1a1a1a" padding={1} width={72} maxHeight="85%">
+    <ModalBackdrop>
+      <box flexDirection="column" backgroundColor="#1a1a1a" padding={1} width={72} maxHeight="85%">
         <text fg="#fff" attributes={TextAttributes.BOLD}>{t("settings.title")}</text>
 
         <box flexDirection="column" marginTop={1}>
@@ -248,6 +261,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
           <text fg="#666">{"↑↓ 移动  Enter/Space 切换  c 检查  a 全部  l 语言  o 目录  Esc 完成"}</text>
         </box>
       </box>
-    </box>
+    </ModalBackdrop>
   )
 }

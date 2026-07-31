@@ -8,6 +8,7 @@
 
 import { useKeyboard } from "@opentui/react"
 import { useEffect, useState } from "react"
+import { ModalBackdrop } from "../components/ModalBackdrop"
 import { t } from "../i18n"
 import type { PackageManager, PackageDetail } from "../managers"
 import { publishedDate } from "../managers"
@@ -95,8 +96,8 @@ export function DetailScreen(props: DetailScreenProps) {
     ) : null
 
   return (
-    <box position="absolute" top={0} left={0} width="100%" height="100%" backgroundColor="rgba(0,0,0,0.5)" alignItems="center" justifyContent="center">
-      <box flexDirection="column" borderStyle="rounded" borderColor="#36c" backgroundColor="#1a1a1a" padding={1} width={80} maxHeight={"80%"}>
+    <ModalBackdrop>
+      <box flexDirection="column" backgroundColor="#1a1a1a" padding={1} width={80} maxHeight={"80%"}>
         <text fg="#fff">{title}</text>
         <box flexDirection="column" marginTop={1}>
           {body}
@@ -118,7 +119,7 @@ export function DetailScreen(props: DetailScreenProps) {
           })}
         </box>
       </box>
-    </box>
+    </ModalBackdrop>
   )
 }
 

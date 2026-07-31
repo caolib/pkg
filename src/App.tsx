@@ -193,7 +193,7 @@ export function App() {
           label: t("col.latest"),
           width: 16,
           render: (r) => r.latestVersion || "-",
-          fgOverride: (r) => (r.hasUpdate ? "#ff0" : undefined),
+          fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
         },
         { key: "manager", label: t("col.manager"), width: 12, render: (r) => r.managerName },
       ]
@@ -205,7 +205,7 @@ export function App() {
           label: t("col.latest"),
           width: 18,
           render: (r) => r.latestVersion || "-",
-          fgOverride: (r) => (r.hasUpdate ? "#ff0" : undefined),
+          fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
         },
       ]
 
@@ -707,7 +707,7 @@ function matchBinding(
   if (wantAlt !== !!key.meta) return false
   // 名称归一：
   //  - comma：非修饰时 name=","；Ctrl+, 在终端编码为控制字符 \x1c（OpenTUI 解析为
-  //    name="\\"、sequence="\x1c"），故用 sequence 判定 Ctrl+comma。
+  //    name="\\"、sequence="\x1c"），故用 sequence 判定 Ctrl+comma；Alt+, 走 name 判定。
   //  - space：name="space"
   if (last === "comma") {
     if (wantCtrl) return key.sequence === "\x1c"
@@ -724,7 +724,7 @@ function renderBindingHints(kb: Record<string, string>, filterMode: boolean): st
   }
   const seg = (label: string, keys: string) => `${keys} ${label}`
   return [
-    seg(t("binding.settings"), kb.open_settings ?? "ctrl+,"),
+    seg(t("binding.settings"), kb.open_settings ?? "alt+,"),
     seg(t("binding.search"), kb.open_search ?? "s"),
     seg(t("binding.refresh"), kb.refresh_all ?? "r"),
     seg(t("binding.update"), kb.update_selected ?? "u"),

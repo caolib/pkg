@@ -8,6 +8,7 @@
  */
 
 import { useKeyboard } from "@opentui/react"
+import { ModalBackdrop } from "../components/ModalBackdrop"
 import { t } from "../i18n"
 import { useState } from "react"
 
@@ -44,7 +45,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
   const noBg = focus === "no" ? "#264f78" : "#333"
 
   return (
-    <box position="absolute" top={0} left={0} width="100%" height="100%" backgroundColor="rgba(0,0,0,0.5)" alignItems="center" justifyContent="center">
+    <ModalBackdrop>
       <box flexDirection="column" borderStyle="rounded" borderColor="#c93" backgroundColor="#1a1a1a" padding={1} width={64}>
         <text fg="#eee">{message}</text>
         {commands && commands.length > 0 ? (
@@ -62,6 +63,6 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           <text fg="#fff" bg={noBg}>{` ${t("button.cancel")} `}</text>
         </box>
       </box>
-    </box>
+    </ModalBackdrop>
   )
 }

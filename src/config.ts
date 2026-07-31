@@ -20,7 +20,7 @@ export interface Config {
 
 /** 主应用可自定义的快捷键定义：[action, 默认按键, 说明_i18n_key, 是否显示在底栏] */
 export const DEFAULT_BINDINGS: [string, string, string, boolean][] = [
-  ["open_settings", "ctrl+comma", "binding.settings", true],
+  ["open_settings", "alt+comma", "binding.settings", true],
   ["open_search", "s", "binding.search", true],
   ["refresh_all", "r", "binding.refresh", true],
   ["update_selected", "u", "binding.update", true],

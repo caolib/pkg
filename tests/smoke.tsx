@@ -45,6 +45,21 @@ async function main() {
     // 设置界面底部固定有"↑↓ 移动"操作提示，作为打开成功的稳定标识
     const settingsOpen = f1.includes("↑↓ 移动")
     check(settingsOpen, "Ctrl+, 打开设置界面")
+    const settingsFrame = setup.captureSpans()
+    const hasMagentaBackground = settingsFrame.lines.some((line) =>
+      line.spans.some((span) => {
+        const [r, g, b] = span.bg.toInts()
+        return r === 255 && g === 0 && b === 255
+      }),
+    )
+    check(!hasMagentaBackground, "设置界面遮罩颜色正确")
+    const hasBlueBorder = settingsFrame.lines.some((line) =>
+      line.spans.some((span) => {
+        const [r, g, b] = span.fg.toInts()
+        return r === 51 && g === 102 && b === 204
+      }),
+    )
+    check(!hasBlueBorder, "设置界面无蓝色边框")
 
     // 关闭设置：↓ 移到末尾"完成"行再 Enter。逐键 act+render 让 useKeyboard
     // 回调闭包刷新（同 act 内批量发键会因闭包陈旧导致 cursor 不累积）。
