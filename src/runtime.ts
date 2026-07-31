@@ -7,7 +7,7 @@
  */
 
 import { listManagers, type PackageManager, type PackageInfo, type OperationResult, hasUpdate as pkgHasUpdate } from "./managers"
-import { type Config, defaultKeybindings, defaultSearchKeybindings, getDisabledManagers, getKeybindings, getSearchKeybindings, getLanguage, getManagerIcons, loadConfig, saveConfig } from "./config"
+import { type Config, defaultKeybindings, defaultSearchKeybindings, getDisabledManagers, getKeybindings, getSearchKeybindings, getLanguage, getManagerIcons, loadConfig, saveConfig, configExists } from "./config"
 
 /** "全部"视图的特殊标识 */
 export const ALL_MANAGERS = "__all__"
@@ -90,6 +90,15 @@ export class ManagerRegistry {
     return getLanguage(this.config)
   }
 
+  /**
+   * 首次启动时若配置文件不存在，用默认值初始化并写入磁盘，
+   * 方便用户后续按文件手动编辑快捷键等设置。
+   */
+  async ensureConfig(): Promise<void> {
+    if (await configExists()) return
+    await this.persist()
+  }
+
   /** 管理器按钮图标前缀（含尾随空格），无图标返回空串。 */
   managerIcon(name: string): string {
     if (name === ALL_MANAGERS) return "◈ "
@@ -163,12 +172,26 @@ export class ManagerRegistry {
   }
 
   /** 持久化配置到磁盘。 */
+  /**
+   * 持久化配置到磁盘。
+   *
+   * 快捷键（keybindings / search_keybindings）在 UI 中没有编辑入口，
+   * 因此以磁盘当前值为准——避免用启动时载入内存的旧值覆盖用户在运行期间
+   * 手动修改的 config.json。只有 disabled_managers / language / manager_icons
+   * 这些 UI 可改的字段才用内存值写入。
+   */
   async persist(): Promise<void> {
+    let disk: Config = {}
+    try {
+      disk = await loadConfig()
+    } catch {
+      // 磁盘读取失败时退回内存值（不阻塞保存）
+    }
     this.config = {
       disabled_managers: [...this.disabledManagers].sort(),
-      keybindings: this.keybindings,
-      search_keybindings: this.searchKeybindings,
-      language: "",
+      keybindings: disk.keybindings ?? this.keybindings,
+      search_keybindings: disk.search_keybindings ?? this.searchKeybindings,
+      language: this.config.language || "",
       manager_icons: this.managerIcons,
     }
     try {

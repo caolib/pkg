@@ -98,6 +98,8 @@ export function App() {
       const lang = await reg.loadPersisted()
       // 语言优先配置，否则 i18n 已自动检测（无需动）
       if (lang) setLanguage(lang)
+      // 首次启动若配置文件不存在，用默认值写入磁盘
+      await reg.ensureConfig()
       await reg.checkAvailability()
       rerender()
       await loadCurrentView()
@@ -707,7 +709,7 @@ function matchBinding(
   if (wantAlt !== !!key.meta) return false
   // 名称归一：
   //  - comma：非修饰时 name=","；Ctrl+, 在终端编码为控制字符 \x1c（OpenTUI 解析为
-  //    name="\\"、sequence="\x1c"），故用 sequence 判定 Ctrl+comma；Alt+, 走 name 判定。
+  //    name="\\"、sequence="\x1c"），故用 sequence 判定 Ctrl+comma。
   //  - space：name="space"
   if (last === "comma") {
     if (wantCtrl) return key.sequence === "\x1c"
@@ -724,7 +726,7 @@ function renderBindingHints(kb: Record<string, string>, filterMode: boolean): st
   }
   const seg = (label: string, keys: string) => `${keys} ${label}`
   return [
-    seg(t("binding.settings"), kb.open_settings ?? "alt+,"),
+    seg(t("binding.settings"), kb.open_settings ?? "alt+s"),
     seg(t("binding.search"), kb.open_search ?? "s"),
     seg(t("binding.refresh"), kb.refresh_all ?? "r"),
     seg(t("binding.update"), kb.update_selected ?? "u"),

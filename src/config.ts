@@ -8,7 +8,8 @@
  */
 
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { join, dirname } from "node:path"
+import { mkdir } from "node:fs/promises"
 
 export interface Config {
   disabled_managers?: string[]
@@ -20,7 +21,7 @@ export interface Config {
 
 /** 主应用可自定义的快捷键定义：[action, 默认按键, 说明_i18n_key, 是否显示在底栏] */
 export const DEFAULT_BINDINGS: [string, string, string, boolean][] = [
-  ["open_settings", "alt+comma", "binding.settings", true],
+  ["open_settings", "alt+s", "binding.settings", true],
   ["open_search", "s", "binding.search", true],
   ["refresh_all", "r", "binding.refresh", true],
   ["update_selected", "u", "binding.update", true],
@@ -52,6 +53,15 @@ export function configPath(): string {
   return join(configDir(), "config.json")
 }
 
+/** 检测配置文件是否存在。 */
+export async function configExists(): Promise<boolean> {
+  try {
+    return await Bun.file(configPath()).exists()
+  } catch {
+    return false
+  }
+}
+
 /** 从磁盘加载配置；文件不存在或损坏时返回空对象。 */
 export async function loadConfig(): Promise<Config> {
   try {
@@ -67,6 +77,8 @@ export async function loadConfig(): Promise<Config> {
 /** 将配置写入磁盘，自动创建父目录。 */
 export async function saveConfig(config: Config): Promise<void> {
   const path = configPath()
+  // Bun.write 不会自动创建父目录，需先 mkdir -p，否则首次启动时抛 ENOENT。
+  await mkdir(dirname(path), { recursive: true })
   await Bun.write(path, JSON.stringify(config, null, 2))
 }
 
