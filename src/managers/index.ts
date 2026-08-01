@@ -1,7 +1,7 @@
 /**
  * 包管理器后端实现入口。
  *
- * 导入此模块会自动注册所有已实现的管理器（npm、pnpm、bun、winget、scoop、cargo）。
+ * 导入此模块会自动注册所有已实现的管理器（npm、pnpm、bun、winget、scoop、cargo、choco）。
  * 对应原 Python 项目的 managers/__init__.py。
  */
 
@@ -11,6 +11,7 @@ import "./bun";
 import "./winget";
 import "./scoop";
 import "./cargo";
+import "./choco";
 
 export { PackageManager, getManagerClass, listManagers, registerManager } from "./base";
 export type {
