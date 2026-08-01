@@ -59,9 +59,11 @@ export function ManagerStrip(props: ManagerStripProps): ReactNode {
                 // 不会自动跟上；这里回传以保持二者同步（否则打字时字符键会
                 // 同时被主界面当快捷键执行）
                 onMouseDown={onFilterFocus}
-                // 仅在过滤输入模式时聚焦，避免 input 默认夺取焦点而吞掉
-                // 表格所需的 ↑↓/s/u/d 等按键（OpenTUI 的 input 聚焦会消费 keyInput）
-                focused={filterMode}
+                // 过滤输入模式或顶栏聚焦到过滤框时都聚焦 input（后者用于显示
+                // 光标）。OpenTUI 全局 keyHandler（useKeyboard）先于聚焦的
+                // renderable 处理按键，父组件对 ← → 等导航键 preventDefault 后
+                // input 不会吞键，表格所需的 ↑↓/s/u/d 也不受影响
+                focused={filterMode || filterFocused}
                 backgroundColor={filterMode || filterFocused ? "#222" : "#111"}
                 focusedBackgroundColor="#222"
                 textColor="#eee"

@@ -9,16 +9,23 @@
  *
  * 简化：用自建受控列表（box+text），键盘 ↑↓ 移光标、Enter/Space 切换启用、
  * c 检查单个、a 全部检查、l 切语言、o 打开目录、Esc/Enter 在"完成"行关闭。
+ * 鼠标：单击行 = 选中并激活（与 ConfirmDialog 按钮一致），悬浮行高亮；
+ * 行区溢出时滚轮上下移动光标（光标驱动的滚动窗口，同 PackageTable，无滚动条）。
  */
 
-import { TextAttributes } from "@opentui/core"
-import { useKeyboard, useRenderer } from "@opentui/react"
-import { useState } from "react"
+import { MouseButton, TextAttributes, type MouseEvent } from "@opentui/core"
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
+import { useState, useRef } from "react"
 import { ModalBackdrop } from "../components/ModalBackdrop"
 import { configPath } from "../config"
 import { isTextInputFocused } from "../focus"
 import { t, setLanguage, currentLanguage } from "../i18n"
 import type { ManagerRegistry } from "../runtime"
+
+/** 滚轮每档移动的行数（与 PackageTable 的 VSCROLL_STEP 一致） */
+const VSCROLL_STEP = 3
+/** 行区固定开销：内边距2 + 标题1 + 行区上边距1 + 配置路径3 + 底栏2 = 9 */
+const ROWS_OVERHEAD = 9
 
 export interface SettingsResult {
   disabledManagers: Set<string>
@@ -61,10 +68,15 @@ function toggleLabel(reg: ManagerRegistry, name: string): string {
 export function SettingsScreen(props: SettingsScreenProps) {
   const { reg, onClose, onToast } = props
   const renderer = useRenderer()
+  const { height } = useTerminalDimensions()
   const [, force] = useState(0)
   const rerender = () => force((n) => n + 1)
   const [cursor, setCursor] = useState(0)
   const [lang, setLang] = useState(currentLanguage())
+  /** 鼠标悬浮的行索引（-1=无） */
+  const [hover, setHover] = useState(-1)
+  /** 光标驱动的滚动窗口起点（同 PackageTable：行溢出时滚轮/键盘让光标行可见） */
+  const windowStartRef = useRef(0)
 
   // 行序列：各管理器 + 语言 + 全部检查 + 打开目录 + 完成
   const rows: Row[] = [
@@ -74,6 +86,33 @@ export function SettingsScreen(props: SettingsScreenProps) {
     { kind: "opendir" },
     { kind: "done" },
   ]
+
+  // 行区可见高度：模态框 maxHeight=85%，行区盒子给显式 height（显式高度
+  // 不受 Yoga 收缩影响），扣除固定开销 ROWS_OVERHEAD 后恰好放满。
+  // 行数不足时盒子收缩到实际行数，避免出现空白行。
+  const listRows = Math.min(rows.length, Math.max(2, Math.floor(height * 0.85) - ROWS_OVERHEAD))
+  const maxStart = Math.max(0, rows.length - listRows)
+  let windowStart = Math.min(windowStartRef.current, maxStart)
+  if (cursor < windowStart) windowStart = cursor
+  else if (cursor >= windowStart + listRows) windowStart = cursor - listRows + 1
+  windowStart = Math.max(0, Math.min(windowStart, maxStart))
+  windowStartRef.current = windowStart
+  const windowEnd = Math.min(windowStart + listRows, rows.length)
+  const visibleRows = rows.slice(windowStart, windowEnd)
+
+  const handleWheel = (event: MouseEvent) => {
+    ;(globalThis as any).__wheelLog = ((globalThis as any).__wheelLog || [])
+    if (event.type !== "scroll" || !event.scroll) return
+    ;(globalThis as any).__wheelLog.push(`${event.scroll?.direction}${event.scroll?.delta} cursor=${cursor}`)
+    event.preventDefault()
+    event.stopPropagation()
+    const { direction, delta } = event.scroll
+    if (direction === "up") {
+      setCursor((c) => Math.max(0, c - (delta || 1) * VSCROLL_STEP))
+    } else if (direction === "down") {
+      setCursor((c) => Math.min(rows.length - 1, c + (delta || 1) * VSCROLL_STEP))
+    }
+  }
 
   useKeyboard((key) => {
     if (key.name === "escape") {
@@ -204,14 +243,25 @@ export function SettingsScreen(props: SettingsScreenProps) {
       <box flexDirection="column" backgroundColor="#1a1a1a" padding={1} width={72} maxHeight="85%">
         <text fg="#fff" attributes={TextAttributes.BOLD}>{t("settings.title")}</text>
 
-        <box flexDirection="column" marginTop={1}>
-          {rows.map((row, i) => {
+        <box flexDirection="column" marginTop={1} height={listRows} onMouseScroll={handleWheel}>
+          {visibleRows.map((row, vi) => {
+            const i = windowStart + vi
             const isCursor = i === cursor
-            const bg = isCursor ? "#264f78" : "transparent"
+            const bg = isCursor ? "#264f78" : hover === i ? "#333" : "transparent"
+            const rowHandlers = {
+              onMouseDown: (event: MouseEvent) => {
+                if (event.button !== MouseButton.LEFT) return
+                event.stopPropagation()
+                setCursor(i)
+                activate(row)
+              },
+              onMouseOver: () => setHover(i),
+              onMouseOut: () => setHover((h) => (h === i ? -1 : h)),
+            }
             if (row.kind === "mgr") {
               const st = reg.states.get(row.name)!
               return (
-                <box key={`mgr-${row.name}`} flexDirection="row" backgroundColor={bg}>
+                <box key={`mgr-${row.name}`} flexDirection="row" backgroundColor={bg} {...rowHandlers}>
                   <text width={12} fg="#ddd">{row.name}</text>
                   <text width={16} fg={statusColor(reg, row.name)}>{statusLabel(reg, row.name)}</text>
                   <text width={10} fg={st.disabled ? "#888" : "#8f8"}>{toggleLabel(reg, row.name)}</text>
@@ -220,7 +270,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
             }
             if (row.kind === "lang") {
               return (
-                <box key="lang" flexDirection="row" backgroundColor={bg}>
+                <box key="lang" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
                   <text width={12} fg="#888">{t("settings.section_language")}</text>
                   <text width={20} fg="#6cf">{lang === "zh_CN" ? t("settings.lang_zh") : t("settings.lang_en")}</text>
                   <text fg="#888">{"(l 切换)"}</text>
@@ -229,21 +279,21 @@ export function SettingsScreen(props: SettingsScreenProps) {
             }
             if (row.kind === "checkall") {
               return (
-                <box key="checkall" flexDirection="row" backgroundColor={bg}>
+                <box key="checkall" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
                   <text fg="#6cf">{`[ ${t("settings.check_all")} ]  (a)`}</text>
                 </box>
               )
             }
             if (row.kind === "opendir") {
               return (
-                <box key="opendir" flexDirection="row" backgroundColor={bg}>
+                <box key="opendir" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
                   <text fg="#6cf">{`[ ${t("settings.open_dir")} ]  (o)`}</text>
                 </box>
               )
             }
             // done
             return (
-              <box key="done" flexDirection="row" backgroundColor={bg}>
+              <box key="done" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
                 <text fg="#ff0">{`[ ${t("settings.done")} ]`}</text>
               </box>
             )

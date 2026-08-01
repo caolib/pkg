@@ -1,8 +1,9 @@
 /**
  * PackageTable 鼠标交互回归测试。
  *
- * 运行：bun tests/package-table-mouse.tsx
+ * 运行：bun test
  */
+import { test } from "bun:test"
 import { testRender } from "@opentui/react/test-utils"
 import { act, useState } from "react"
 import { PackageTable, type TableColumn } from "../src/components/PackageTable"
@@ -43,18 +44,14 @@ function TestTable(props: {
   )
 }
 
-async function main() {
-  let failures = 0
-  const selected: string[] = []
-  const opened: string[] = []
+test("表格鼠标交互（单击选中/双击打开）", async () => {
   const check = (condition: boolean, message: string) => {
-    if (condition) console.log("  ✓", message)
-    else {
-      failures++
-      console.log("  ✗", message)
-    }
+    if (!condition) throw new Error(message)
+    console.log("  ✓", message)
   }
 
+  const selected: string[] = []
+  const opened: string[] = []
   const setup = await testRender(
     <TestTable
       onSelect={(key) => selected.push(key)}
@@ -81,19 +78,9 @@ async function main() {
     })
     await setup.renderOnce()
     check(opened.length === 1 && opened[0] === "5", "双击同一行打开对应详情")
-
-    console.log(
-      failures === 0
-        ? "\n=== [ALL OK] 表格鼠标测试通过 ==="
-        : `\n=== 表格鼠标测试有 ${failures} 项未通过 ===`,
-    )
   } finally {
     await act(async () => {
       setup.renderer.destroy()
     })
   }
-
-  if (failures > 0) process.exit(1)
-}
-
-main()
+})

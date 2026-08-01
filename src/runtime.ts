@@ -261,7 +261,7 @@ export interface SearchGroup {
   rep: PackageManager
   /** 组内成员（安装时的候选管理器） */
   members: PackageManager[]
-  /** 来源标注（如 "bun/npm/pnpm"） */
+  /** 来源标注：只显示实际执行搜索的代表名（npm 系用 npm 搜，故标 "npm" 而非 "bun/npm/pnpm"） */
   sourceLabel: string
 }
 
@@ -280,7 +280,7 @@ export function buildSearchGroups(managers: PackageManager[]): { groups: SearchG
     groups.push({
       rep,
       members: ms,
-      sourceLabel: ms.map((m) => m.name).join("/"),
+      sourceLabel: rep.name,
     })
   }
   const repMap = new Map<string, PackageManager>()

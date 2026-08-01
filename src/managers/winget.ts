@@ -12,6 +12,7 @@
  */
 
 import { t } from "../i18n"
+import { dispWidthChar, sliceByDisp } from "../width"
 import type {
   OperationResult,
   PackageDetail,
@@ -29,50 +30,13 @@ const _ACCEPT_ARGS = [
 ]
 
 // ---------------------------------------------------------------------------
-// 显示宽度辅助（中文/全角=2，其余=1）
+// 显示宽度辅助（中文/全角=2，其余=1），共享实现见 ../width.ts
 // ---------------------------------------------------------------------------
-
-function _isWide(ch: string): boolean {
-  const code = ch.codePointAt(0) ?? 0
-  // 简化的全角判定：CJK 统一表意、全角标点等。覆盖 winget 中文表头即可。
-  return (
-    (code >= 0x1100 && code <= 0x115f) || // 韩文
-    (code >= 0x2e80 && code <= 0x303e) ||
-    (code >= 0x3040 && code <= 0x33bf) ||
-    (code >= 0x3400 && code <= 0x4dbf) ||
-    (code >= 0x4e00 && code <= 0xa4cf) ||
-    (code >= 0xa960 && code <= 0xa97f) ||
-    (code >= 0xac00 && code <= 0xd7a3) ||
-    (code >= 0xf900 && code <= 0xfaff) ||
-    (code >= 0xfe30 && code <= 0xfe6f) ||
-    (code >= 0xff00 && code <= 0xff60) ||
-    (code >= 0xffe0 && code <= 0xffe6) ||
-    (code >= 0x20000 && code <= 0x3fffd)
-  )
-}
-
-/** 单字符显示宽度。 */
-function _dispWidth(ch: string): number {
-  return _isWide(ch) ? 2 : 1
-}
 
 function _dispWidthStr(s: string): number {
   let sum = 0
-  for (const ch of s) sum += _dispWidth(ch)
+  for (const ch of s) sum += dispWidthChar(ch)
   return sum
-}
-
-/** 按显示列区间 [startCol, endCol) 从字符串切片。 */
-function _sliceByDisp(line: string, startCol: number, endCol: number): string {
-  const out: string[] = []
-  let col = 0
-  for (const ch of line) {
-    const w = _dispWidth(ch)
-    if (col + w > startCol && col < endCol) out.push(ch)
-    col += w
-    if (col >= endCol) break
-  }
-  return out.join("")
 }
 
 /** 表头列名候选：winget 中英文表头 → 统一 key。 */
@@ -108,7 +72,7 @@ function _columnPositions(header: string): Record<string, number> {
     const start = col
     let j = i
     while (j < n && !/\s/.test(chars[j])) {
-      col += _dispWidth(chars[j])
+      col += dispWidthChar(chars[j])
       j++
     }
     const word = chars.slice(i, j).join("")
@@ -149,7 +113,7 @@ function _splitRowByColumns(
       result[key] = ""
       return
     }
-    result[key] = _sliceByDisp(line, start, end).trim()
+    result[key] = sliceByDisp(line, start, end).trim()
   })
   return result
 }

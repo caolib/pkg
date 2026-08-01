@@ -9,6 +9,7 @@ import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import type { InputRenderable } from "@opentui/core"
 import { useEffect, useRef, useState } from "react"
 import { isTextInputFocused } from "./focus"
+import { getTerminalBackground } from "./terminal-colors"
 import { t, setLanguage, currentLanguage } from "./i18n"
 import {
   ALL_MANAGERS,
@@ -24,6 +25,7 @@ import {
 import type { PackageManager, PackageDetail, PackageInfo } from "./managers"
 import { PackageTable, type TableColumn } from "./components/PackageTable"
 import { ManagerStrip, buildStripItems, type StripItem, type StripItemKind } from "./components/ManagerStrip"
+import { LoadingIndicator } from "./components/LoadingIndicator"
 import { ConfirmDialog } from "./screens/ConfirmDialog"
 import { SearchScreen } from "./screens/SearchScreen"
 import { DetailScreen } from "./screens/DetailScreen"
@@ -117,6 +119,9 @@ export function App() {
       // 首次启动若配置文件不存在，用默认值写入磁盘
       await reg.ensureConfig()
       await reg.checkAvailability()
+      // 提前触发终端背景色检测并缓存——搜索 overlay 打开时即可同步读到，
+      // 避免先用 FALLBACK_BACKGROUND 渲染一帧深色再切到真实背景的闪烁
+      getTerminalBackground(renderer)
       rerender()
       await loadCurrentView()
     })()
@@ -433,7 +438,36 @@ export function App() {
 
     const kb = reg.keybindings
 
-    // --- 过滤输入模式：input 聚焦吃字符键，这里只处理退出 ---
+    // --- 顶栏聚焦模式：← → 循环导航（设置/搜索/过滤框/管理器按钮），↓/Esc 进表格 ---
+    // 过滤框项被顶栏聚焦时会连带聚焦 input（显示光标，见 ManagerStrip），因此
+    // 本分支必须先于下方的 input 焦点判断执行；OpenTUI 的全局 keyHandler
+    // 先于聚焦 renderable 处理按键，这里 preventDefault 后 input 不会吞掉导航键。
+    if (stripFocus >= 0) {
+      const onFilter = stripItems[stripFocus]?.kind === "filter"
+      if (key.name === "left") {
+        setStripFocus((stripFocus - 1 + stripItems.length) % stripItems.length)
+        key.preventDefault()
+      } else if (key.name === "right") {
+        setStripFocus((stripFocus + 1) % stripItems.length)
+        key.preventDefault()
+      } else if (key.name === "down" || key.name === "escape") {
+        exitFilterMode() // 交还表格（顺带 blur 过滤框）
+        key.preventDefault()
+      } else if (onFilter) {
+        // 焦点在过滤框：与过滤输入模式一致——Enter 退出，其余键交给 input 输入
+        if (key.name === "return") {
+          exitFilterMode()
+          key.preventDefault()
+        }
+        return
+      } else if (key.name === "return" || key.name === " ") {
+        activateStrip(stripFocus)
+        key.preventDefault()
+      }
+      return
+    }
+
+    // --- 过滤输入模式（stripFocus < 0 时的兜底判据）：input 聚焦吃字符键，这里只处理退出 ---
     // 判据是渲染器的真实焦点，不能只看 filterMode：鼠标点击输入框会直接
     // 改变焦点而不经过 setFilterMode，只信 state 会让 d/u/f 等字符键在打字
     // 时被当成快捷键执行（见 src/focus.ts）。
@@ -443,24 +477,6 @@ export function App() {
         key.preventDefault()
       }
       return // 其余键交给 input 自身
-    }
-
-    // --- 顶栏聚焦模式：← → 移动焦点（设置/搜索/过滤框/管理器按钮），↓ 进表格，enter/space 激活 ---
-    if (stripFocus >= 0) {
-      if (key.name === "left") {
-        setStripFocus((stripFocus - 1 + stripItems.length) % stripItems.length)
-        key.preventDefault()
-      } else if (key.name === "right") {
-        setStripFocus((stripFocus + 1) % stripItems.length)
-        key.preventDefault()
-      } else if (key.name === "down" || key.name === "escape") {
-        setStripFocus(-1) // 进表格
-        key.preventDefault()
-      } else if (key.name === "return" || key.name === " ") {
-        activateStrip(stripFocus)
-        key.preventDefault()
-      }
-      return
     }
 
     // --- 表格模式：全局 useKeyboard 全权处理（input 未聚焦不吞键）---
@@ -653,38 +669,39 @@ export function App() {
         }}
         onButton={handleStripButton}
       />
-      {/* 表格 */}
+      {/* 表格：数据有多少显示多少，加载态不阻塞表格 */}
       <box flexDirection="column" flexGrow={1} paddingTop={1} paddingLeft={1} paddingRight={1}>
-        {loadingHint && rows.length === 0 ? (
-          <box flexGrow={1} alignItems="center" justifyContent="center">
-            <text fg="#888">{t("detail.loading")}</text>
-          </box>
-        ) : (
-          <PackageTable
-            columns={columns}
-            rows={rows}
-            rowKey={(r) => r.key}
-            cursor={cursor}
-            checkedKeys={checkedKeys}
-            checkColumnIndex={0}
-            visibleRows={tableVisibleRows}
-            emptyHint={t("search.status_no_results")}
-            onRowClick={(_, index) => {
-              exitFilterMode()
-              setCursor(index)
-            }}
-            onRowDoubleClick={(row) => viewRow(row)}
-            onScrollMove={(delta) => {
-              const max = Math.max(0, rows.length - 1)
-              setCursor((c) => Math.min(max, Math.max(0, c + delta)))
-            }}
-          />
-        )}
+        <PackageTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.key}
+          cursor={cursor}
+          checkedKeys={checkedKeys}
+          checkColumnIndex={0}
+          visibleRows={tableVisibleRows}
+          emptyHint={t("search.status_no_results")}
+          onRowClick={(_, index) => {
+            exitFilterMode()
+            setCursor(index)
+          }}
+          onRowDoubleClick={(row) => viewRow(row)}
+          onScrollMove={(delta) => {
+            const max = Math.max(0, rows.length - 1)
+            setCursor((c) => Math.min(max, Math.max(0, c + delta)))
+          }}
+        />
       </box>
       {/* 底栏：快捷键提示 */}
       <box flexDirection="row" height={1} backgroundColor="#111" paddingLeft={1}>
         <text fg="#666">{renderBindingHints(reg.keybindings, filterMode)}</text>
       </box>
+
+      {/* 加载指示器：右下角悬浮（不挡表格），installed+outdated 全部就绪后消失 */}
+      {loadingHint ? (
+        <box position="absolute" bottom={1} right={1}>
+          <LoadingIndicator />
+        </box>
+      ) : null}
 
       {/* toast：右下角悬浮通知卡片（参照 opencode 的悬浮 Box 实现） */}
       {toast ? (
@@ -719,6 +736,7 @@ export function App() {
       {overlay?.kind === "search" ? (
         <SearchScreen
           managers={getAvailableManagers()}
+          managerIcon={(name) => reg.managerIcon(name)}
           onClose={() => setOverlay(null)}
           onView={(mgr, name, title) =>
             setOverlay({ kind: "detail", manager: mgr, name, managerName: null, title: title || name })

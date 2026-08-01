@@ -1,25 +1,20 @@
 /**
- * 集成冒烟测试（非阻塞，用 @opentui/react/test-utils 的 testRender）。
+ * 集成冒烟测试（用 @opentui/react/test-utils 的 testRender）。
  *
  * 验证主界面启动无崩溃 + 顶栏渲染 + 设置 overlay 开关 + 光标/勾选交互。
  * 不依赖具体 CLI 输出内容；若本机有可用包管理器会额外加载出数据行。
  *
- * 运行：bun tests/smoke.tsx
+ * 运行：bun test
  */
+import { test } from "bun:test"
 import { testRender } from "@opentui/react/test-utils"
-import { KeyCodes } from "@opentui/core/testing"
 import { act } from "react"
 import { App } from "../src/App"
 
-async function main() {
-  let failures = 0
+test("冒烟测试：主界面启动 + 设置 overlay + 光标/勾选交互", async () => {
   const check = (cond: boolean, msg: string) => {
-    if (!cond) {
-      failures++
-      console.log("  ✗", msg)
-    } else {
-      console.log("  ✓", msg)
-    }
+    if (!cond) throw new Error(msg)
+    console.log("  ✓", msg)
   }
 
   const setup = await testRender(<App />, { width: 100, height: 24 })
@@ -36,15 +31,15 @@ async function main() {
     check(f0.includes("全部") || f0.includes("All"), "主界面顶栏渲染")
     check(f0.includes("下载") || f0.includes("Search"), "顶栏含搜索按钮")
 
-    // 设置 overlay：Ctrl+, 打开
+    // 设置 overlay：默认快捷键 alt+s 打开
     await act(async () => {
-      setup.mockInput.pressKey(",", { ctrl: true })
+      setup.mockInput.pressKey("s", { meta: true })
     })
     await setup.renderOnce()
     const f1 = setup.captureCharFrame()
     // 设置界面底部固定有"↑↓ 移动"操作提示，作为打开成功的稳定标识
     const settingsOpen = f1.includes("↑↓ 移动")
-    check(settingsOpen, "Ctrl+, 打开设置界面")
+    check(settingsOpen, "alt+s 打开设置界面")
     const settingsFrame = setup.captureSpans()
     const hasMagentaBackground = settingsFrame.lines.some((line) =>
       line.spans.some((span) => {
@@ -95,18 +90,7 @@ async function main() {
     } else {
       console.log("  · 无 ✓（可能无已安装包数据，交互逻辑本身已验证）")
     }
-
-    console.log(
-      failures === 0
-        ? "\n=== [ALL OK] 冒烟测试通过 ==="
-        : `\n=== 冒烟测试有 ${failures} 项未通过 ===`,
-    )
-  } catch (e) {
-    console.log("SMOKE ERROR:", String(e))
-    failures++
   } finally {
     setup.renderer.destroy()
   }
-  if (failures > 0) process.exit(1)
-}
-main()
+})

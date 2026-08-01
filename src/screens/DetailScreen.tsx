@@ -9,7 +9,9 @@
 import { useKeyboard } from "@opentui/react"
 import { useEffect, useState } from "react"
 import { ModalBackdrop } from "../components/ModalBackdrop"
+import { LoadingIndicator } from "../components/LoadingIndicator"
 import { t } from "../i18n"
+import { formatRelativeTime } from "../date"
 import type { PackageManager, PackageDetail } from "../managers"
 import { publishedDate } from "../managers"
 
@@ -88,7 +90,7 @@ export function DetailScreen(props: DetailScreenProps) {
 
   const body =
     state.status === "loading" ? (
-      <text fg="#888">{t("detail.loading")}</text>
+      <LoadingIndicator />
     ) : state.status === "error" ? (
       <text fg="#f88">{t("detail.load_failed", { exc: state.error })}</text>
     ) : state.detail ? (
@@ -144,7 +146,7 @@ function formatDetail(detail: PackageDetail) {
     lines.push([t("detail.maintainers"), detail.maintainers.slice(0, 5).join(", "), undefined])
   }
   const pub = publishedDate(detail)
-  if (pub) lines.push([t("detail.published"), pub, undefined])
+  if (pub) lines.push([t("detail.published"), formatRelativeTime(pub), undefined])
   if (detail.versions && detail.versions.length > 0) {
     const shown = detail.versions.slice(0, 10).join(", ")
     const more = detail.versions.length > 10 ? t("detail.version_count", { count: String(detail.versions.length) }) : ""
