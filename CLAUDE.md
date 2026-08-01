@@ -9,9 +9,9 @@
 渲染核心 + TypeScript/React 绑定），运行于 **Bun**。
 
 当前为**核心版**：已迁移主界面（已安装列表 + 批量更新/卸载 + 本地过滤 + 仅显示
-可更新）、全局搜索、包详情、确认对话框，以及全部 5 个后端（npm/pnpm/bun/winget/scoop）、
-i18n（中/英）、配置持久化、快捷键配置。**尚未迁移**：设置界面（顶栏「设置」当前只
-弹 toast 提示）、Textual 特有的系统命令面板/主题/截图等。
+可更新）、全局搜索、包详情、确认对话框、设置界面（快捷键/图标/语言，写回
+`~/.config/pkg-tui/config.json`），以及全部 6 个后端（npm/pnpm/bun/winget/scoop/cargo）、
+i18n（中/英）、配置持久化、快捷键配置。
 
 主要功能：
 
@@ -50,9 +50,27 @@ bun test
 
 # 类型检查
 bunx tsc --noEmit
+
+# Lint（Biome，~25ms 全量）
+bun run lint          # 仅检查，不改代码
+bun run check         # 检查 + 安全自动修
+bun run format        # 格式化全部源码（--write）
+
+# 只跑不依赖渲染器的纯逻辑测试（快，~40ms）
+bun test tests/date.test.ts tests/search-groups.test.ts
 ```
 
 入口：`src/index.tsx`。
+
+### 关于 Biome
+
+`biome.json` 用 `recommended` 规则集，但迁移期下调了一批噪声规则为 warn（不阻塞 `lint`）：
+`noExplicitAny`（CLI JSON 解析大量 `as any`，迁移期保留）、`useExhaustiveDependencies`
+（OpenTUI useEffect 多为渲染器副作用，自动补依赖有风险，勿自动改）、`noArrayIndexKey`
+（命令/列等非 ID 数据刻意用下标 key）、`noControlCharactersInRegex`（winget/scoop 切列依赖
+ANSI 控制符正则，业务必需）、`noAssignInExpressions`（`obj[k] ??= []` 惯用法）、
+以及 `a11y/*`（终端 UI 非_web，不适用）。`noUnusedImports` 保持 error 级守门。
+改 `biome.json` 时注意勿把这些升级回 error——否则 `bun run lint` 会被迁移期代码阻塞。
 
 ## 架构
 
@@ -63,6 +81,8 @@ src/
 │                          #   overlay 栈（search/detail/confirm）、toast、表格/顶栏/底栏
 ├── runtime.ts             # 领域逻辑层（不依赖渲染）：ManagerRegistry、buildInstalledRows、
 │                          #   buildSearchGroups(registry 去重)、previewCommands、doUpdateAll/doUninstallAll
+├── focus.ts               # isTextInputFocused(renderer)：判断渲染器焦点是否在文本输入框
+│                          #   （本地 state 不可信，见运行时要点）
 ├── i18n.ts                # t() 翻译 + 语言检测/切换
 ├── config.ts              # ~/.config/pkg-tui/config.json 持久化、快捷键/图标/语言 getter
 ├── date.ts                # formatRelativeTime 相对时间（i18n，zh/en；解析失败原样返回）
@@ -78,15 +98,20 @@ src/
 │   ├── bun.ts             # 纯文本正则解析；outdated 逐个 view；search/view 复用 npm
 │   ├── winget.ts          # 表格按显示宽度切列（中文全角）+ show 键值解析
 │   ├── scoop.ts           # ASCII 表头切列 + cat manifest JSON
+│   ├── cargo.ts           # install --list 正则解析；outdated 逐个 info；search/info 显式走 crates.io（镜像源无搜索 API）
 │   └── index.ts           # import 各后端触发注册 + 统一导出
 ├── components/
 │   ├── PackageTable.tsx   # 自建受控表格（box+text，光标行高亮、鼠标悬浮高亮、勾选前缀、滚动窗口、columnGap 列间隔、横向滚动 scrollX）
 │   ├── LoadingIndicator.tsx # 全局加载指示器（单方向扫描 + 色衰减动画，setInterval 推帧）
+│   ├── ModalBackdrop.tsx  # 模态背景容器（overlay 实底盖住主页；ConfirmDialog/
+│   │                      #   DetailScreen/SettingsScreen 共用，终端背景色见 terminal-colors）
 │   └── ManagerStrip.tsx   # 顶栏：设置/搜索按钮 + 过滤输入 + "全部"+各管理器按钮
 └── screens/
     ├── ConfirmDialog.tsx  # 确认框（命令预览 + 确定/取消）
     ├── SearchScreen.tsx   # 搜索（registry 分组并发，i 安装 / v 详情；失败来源在状态栏标注）
-    └── DetailScreen.tsx   # 包详情（后台 view，加载态，更新/删除/关闭）
+    ├── DetailScreen.tsx   # 包详情（后台 view，加载态，更新/删除/关闭）
+    └── SettingsScreen.tsx # 设置（快捷键/图标/语言，保存回 config.json；自建列表交互
+                           #   同 PackageTable，见设置界面鼠标行为段落与 settings-screen-mouse 测试）
 ```
 
 ### 与原项目（old/）的对应
@@ -101,6 +126,8 @@ src/
 | `config.py`           | `config.ts`                    |
 | `app.py`（主界面+编排）| `App.tsx` + `runtime.ts`       |
 | `screens/*_screen.py` | `screens/*` + `components/`    |
+| 原设置 screen（若有）| `screens/SettingsScreen.tsx`  |
+| —（迁移时新增）       | `focus.ts`、`components/ModalBackdrop.tsx`（OpenTUI 无 Textual 模态/焦点原语，迁移时补） |
 | Textual `DataTable`   | 自建 `PackageTable`            |
 | Textual `@work` worker| 普通 async + setState/rerender |
 | `push_screen/dismiss` | overlay 数组（一次一层）       |
@@ -201,6 +228,7 @@ src/
 | `enter`（顶栏聚焦时）              | 激活顶栏按钮          |
 | `←` `→`（表格聚焦时）              | 切换当前管理器视图     |
 | `enter`                            | 查看选中包详情       |
+| `alt+s`                            | 打开设置             |
 | `Ctrl+C`                           | 退出                 |
 
 搜索界面：`i` 安装、`v` 详情、`Esc` 返回。详情/确认：`← →` 切按钮、`Esc` 关闭。

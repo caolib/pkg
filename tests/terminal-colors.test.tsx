@@ -9,7 +9,7 @@
  */
 import { test } from "bun:test"
 import { testRender } from "@opentui/react/test-utils"
-import { FALLBACK_BACKGROUND, getTerminalBackground, getTerminalBackgroundSync } from "../src/terminal-colors"
+import { getTerminalBackground, getTerminalBackgroundSync } from "../src/terminal-colors"
 
 test("getTerminalBackgroundSync 缓存可用性", async () => {
   const check = (cond: boolean, msg: string) => {
