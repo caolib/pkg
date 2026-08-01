@@ -3,8 +3,9 @@
  *
  * 对应原 Python 项目 app.py 中的 #manager-strip：设置 + 搜索 + 过滤框 + "全部"
  * + 各可用管理器按钮，顺序即焦点顺序。当前选中管理器的按钮高亮，
- * 焦点项额外高亮。← → 在项间循环、↓ 进表格、↑ 从表格首行回顶栏，
- * 均由父组件 MainScreen 统一用 useKeyboard 处理；本组件只渲染。
+ * 键盘聚焦项（父组件 stripFocus）额外高亮。← → 在项间循环、↓ 进表格、
+ * ↑ 从表格首行回顶栏、enter 激活，均由父组件 MainScreen 统一用 useKeyboard
+ * 处理；本组件只渲染。
  */
 
 import { type ReactNode, type Ref } from "react"
@@ -26,7 +27,7 @@ export interface StripItem {
 
 export interface ManagerStripProps {
   items: StripItem[]
-  /** 当前焦点项索引（对应 items，仅用于按钮视觉高亮） */
+  /** 键盘聚焦项索引（对应 items）：聚焦项额外高亮；-1 表示焦点在表格 */
   stripFocus: number
   /** 是否处于过滤输入模式（true 时 input 获得焦点并接收键盘） */
   filterMode: boolean
@@ -46,6 +47,7 @@ export function ManagerStrip(props: ManagerStripProps): ReactNode {
     <box flexDirection="row" height={1} alignItems="center">
       {items.map((it, i) => {
         if (it.kind === "filter") {
+          const filterFocused = stripFocus >= 0 && stripFocus === i
           return (
             <box key={`strip-${i}`} flexGrow={1}>
               <input
@@ -60,17 +62,23 @@ export function ManagerStrip(props: ManagerStripProps): ReactNode {
                 // 仅在过滤输入模式时聚焦，避免 input 默认夺取焦点而吞掉
                 // 表格所需的 ↑↓/s/u/d 等按键（OpenTUI 的 input 聚焦会消费 keyInput）
                 focused={filterMode}
-                backgroundColor={filterMode ? "#222" : "#111"}
+                backgroundColor={filterMode || filterFocused ? "#222" : "#111"}
                 focusedBackgroundColor="#222"
                 textColor="#eee"
               />
             </box>
           )
         }
-        // 仅当前选中视图高亮（stripFocus 仅作鼠标可见性参考，不再驱动高亮，
-        // 因键盘改走表格层、不再有顶栏焦点循环）
-        const bg = it.active ? "#264f78" : "#1a1a1a"
-        const fg = it.active ? "#fff" : "#bbb"
+        // 视觉高亮：active=当前选中视图；focused=键盘聚焦（顶栏模式 ← → 可到达）
+        const focused = stripFocus >= 0 && stripFocus === i
+        const bg = focused
+          ? it.active
+            ? "#3d7fc9"
+            : "#4a4a4a"
+          : it.active
+            ? "#264f78"
+            : "#1a1a1a"
+        const fg = focused || it.active ? "#fff" : "#bbb"
         return (
           <text
             key={`strip-${i}`}

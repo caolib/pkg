@@ -37,6 +37,14 @@ async function main() {
   const type = async (text: string) => {
     for (const ch of text) await press(ch)
   }
+  /** 等"没有选中的包"这类 toast 自动消失（toast 非 overlay，Esc 关不掉）。 */
+  const waitForToastGone = async (text: string, timeoutMs = 6000) => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (!setup.captureCharFrame().includes(text)) return
+      await new Promise((r) => setTimeout(r, 100))
+    }
+  }
   /** Esc 单发时 stdin parser 会先当作转义序列前缀挂起，需等它超时 flush。 */
   const pressEscape = async () => {
     await act(async () => {
@@ -79,8 +87,9 @@ async function main() {
     )
     await press("d")
     check(actionFired(), "退出过滤后 d 恢复为卸载快捷键")
-    // 关掉确认框，避免影响后续用例
-    await pressEscape()
+    // d 无选中包时弹的是 toast（非确认框），Esc 关不掉，等它自动消失，
+    // 否则残留 toast 会让用例 3 的 actionFired 误判为"打字触发快捷键"。
+    await waitForToastGone("没有选中的包")
 
     // --- 3. 键盘 / 进入过滤模式后打字 ---
     await press("/")

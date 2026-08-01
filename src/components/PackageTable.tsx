@@ -3,10 +3,11 @@
  *
  * OpenTUI 没有内置 DataTable，这里用一个受控的 box+text 表格：
  *  - 表头行（加粗、黯淡色）；
- *  - 数据行以 box 横排单元格，光标行高亮整行背景、奇数行斑马纹；
+ *  - 数据行以 box 横排单元格，光标行高亮整行背景、鼠标悬浮行灰色高亮；
  *  - 勾选行前缀 ✓；
  *  - 超过可见高度的行被裁剪，并自动滚动让光标行保持可见；
- *  - 单元格用 width 限定列宽、truncate 裁切超宽文本（无 ellipsis 字符）。
+ *  - 单元格用 width 限定列宽、truncate 裁切超宽文本（无 ellipsis 字符）；
+ *  - 鼠标滚轮上下滚动移动光标（由父组件响应 onScrollMove 回写 cursor）。
  *
  * 本组件负责渲染和行鼠标事件（单击/双击），键盘仍由父组件统一处理——
  * 光标移动与选中通过 cursor / onRowClick 回写，避免多组件抢占键盘。
@@ -15,8 +16,8 @@
  * ellipsis；行高亮放在 <box> 的 backgroundColor 上，宽度靠 width 限定。
  */
 
-import { MouseButton, TextAttributes } from "@opentui/core"
-import { useRef, type ReactNode } from "react"
+import { MouseButton, TextAttributes, type MouseEvent } from "@opentui/core"
+import { useRef, useState, type ReactNode } from "react"
 
 const DOUBLE_CLICK_INTERVAL_MS = 400
 
@@ -50,6 +51,8 @@ export interface PackageTableProps<R> {
   onRowClick?: (row: R, index: number) => void
   /** 鼠标左键在限定时间内双击同一数据行 */
   onRowDoubleClick?: (row: R, index: number) => void
+  /** 鼠标滚轮滚动：delta 为步数（正=向下，负=向上） */
+  onScrollMove?: (delta: number) => void
 }
 
 export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
@@ -64,10 +67,13 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
     emptyHint,
     onRowClick,
     onRowDoubleClick,
+    onScrollMove,
   } = props
 
   const windowStartRef = useRef(0)
   const lastClickRef = useRef<{ key: string; at: number } | null>(null)
+  /** 鼠标悬浮的行索引（-1=无） */
+  const [hoverIndex, setHoverIndex] = useState(-1)
 
   if (rows.length === 0) {
     windowStartRef.current = 0
@@ -109,8 +115,8 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
     const isCursor = globalIndex === cursor
     const key = rowKey(row, globalIndex)
     const isChecked = checkedKeys?.has(key) ?? false
-    const zebra = globalIndex % 2 === 1
-    const rowBg = isCursor ? "#264f78" : zebra ? "#1a1a1a" : "transparent"
+    // 高亮优先级：光标行 > 鼠标悬浮行 > 无
+    const rowBg = isCursor ? "#264f78" : hoverIndex === globalIndex ? "#333" : "transparent"
 
     const cells = columns.map((col, ci) => {
       const content = col.render(row)
@@ -134,6 +140,8 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
         key={`r-${key}`}
         flexDirection="row"
         backgroundColor={rowBg}
+        onMouseOver={() => setHoverIndex(globalIndex)}
+        onMouseOut={() => setHoverIndex((h) => (h === globalIndex ? -1 : h))}
         onMouseDown={(event) => {
           if (event.button !== MouseButton.LEFT) return
           event.stopPropagation()
@@ -155,8 +163,17 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
     )
   })
 
+  const handleScroll = (event: MouseEvent) => {
+    if (event.type !== "scroll" || !event.scroll) return
+    event.preventDefault()
+    event.stopPropagation()
+    const { direction, delta } = event.scroll
+    if (direction === "up") onScrollMove?.(-(delta || 1))
+    else if (direction === "down") onScrollMove?.(delta || 1)
+  }
+
   return (
-    <box flexDirection="column" flexGrow={1}>
+    <box flexDirection="column" flexGrow={1} onMouseScroll={handleScroll}>
       <box flexDirection="row">{headerCells}</box>
       <box flexDirection="column" flexGrow={1}>{bodyRows}</box>
     </box>

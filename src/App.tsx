@@ -62,7 +62,7 @@ export function App() {
 
   const [current, setCurrent] = useState<string>(ALL_MANAGERS)
   const [cursor, setCursor] = useState(0)
-  const [stripFocus, setStripFocus] = useState(0) // 顶栏按钮视觉高亮用（不再驱动键路由）
+  const [stripFocus, setStripFocus] = useState(-1) // -1=表格聚焦；>=0=顶栏按钮聚焦索引
   const [filterMode, setFilterMode] = useState(false) // true=过滤框聚焦输入
   const [filterText, setFilterText] = useState("")
   const [filterUpdates, setFilterUpdates] = useState(false)
@@ -76,10 +76,26 @@ export function App() {
   // focused prop 本就是 false，React 不会 diff 出变化，只能手动 blur）
   const filterInputRef = useRef<InputRenderable | null>(null)
 
-  /** 退出过滤输入模式：同步 state 与渲染器真实焦点。 */
+  /** 退出过滤输入模式：同步 state 与渲染器真实焦点，交还表格。 */
   function exitFilterMode() {
     setFilterMode(false)
+    setStripFocus(-1)
     filterInputRef.current?.blur()
+  }
+
+  /** 进入过滤输入模式：聚焦输入框，顶栏焦点落在过滤框上。 */
+  function enterFilterMode() {
+    setFilterMode(true)
+    const idx = stripItems.findIndex((it) => it.kind === "filter")
+    if (idx >= 0) setStripFocus(idx)
+  }
+
+  /** 从表格首行按 ↑ 回顶栏：聚焦当前管理器的按钮。 */
+  function focusStripCurrentManager() {
+    let idx = stripItems.findIndex((it) => it.kind === "manager" && it.name === current)
+    if (idx < 0) idx = stripItems.findIndex((it) => it.kind === "manager")
+    if (idx < 0) idx = 0
+    setStripFocus(idx)
   }
 
   // 用于 search/detail 拿到全部可用管理器（即时读取，避免 useMemo 缓存陈旧的 available）
@@ -429,6 +445,24 @@ export function App() {
       return // 其余键交给 input 自身
     }
 
+    // --- 顶栏聚焦模式：← → 移动焦点（设置/搜索/过滤框/管理器按钮），↓ 进表格，enter/space 激活 ---
+    if (stripFocus >= 0) {
+      if (key.name === "left") {
+        setStripFocus((stripFocus - 1 + stripItems.length) % stripItems.length)
+        key.preventDefault()
+      } else if (key.name === "right") {
+        setStripFocus((stripFocus + 1) % stripItems.length)
+        key.preventDefault()
+      } else if (key.name === "down" || key.name === "escape") {
+        setStripFocus(-1) // 进表格
+        key.preventDefault()
+      } else if (key.name === "return" || key.name === " ") {
+        activateStrip(stripFocus)
+        key.preventDefault()
+      }
+      return
+    }
+
     // --- 表格模式：全局 useKeyboard 全权处理（input 未聚焦不吞键）---
 
     // 优先级最高的动作键
@@ -456,12 +490,12 @@ export function App() {
 
     // 进入过滤输入模式
     if (key.name === "/" || key.name === "slash") {
-      setFilterMode(true)
+      enterFilterMode()
       key.preventDefault()
       return
     }
 
-    // ← → 切换当前管理器视图（在"全部"与各可用管理器间循环）
+    // ← → 切换当前管理器视图（表格内快捷方式；顶栏聚焦时是按钮导航）
     if (key.name === "left") {
       switchManagerRelative(-1)
       key.preventDefault()
@@ -473,9 +507,10 @@ export function App() {
       return
     }
 
-    // ↑ ↓ 表格光标
+    // ↑ ↓ 表格光标；↑ 在第一行时回顶栏
     if (key.name === "up") {
       if (cursor > 0) setCursor(cursor - 1)
+      else focusStripCurrentManager()
       key.preventDefault()
       return
     }
@@ -582,6 +617,10 @@ export function App() {
       openSearch()
       return
     }
+    if (kind === "filter") {
+      enterFilterMode()
+      return
+    }
     if (kind === "manager" && name) {
       switchManager(name)
     }
@@ -590,7 +629,13 @@ export function App() {
   // ------------------------------------------------------------------
   // 渲染
   // ------------------------------------------------------------------
-  const toastFg = toast?.severity === "error" ? "#f88" : toast?.severity === "warn" ? "#fc6" : "#8f8"
+  // 悬浮通知卡片配色：fg=正文色，bar=左侧级别色条（实心铺满、带透明度以减轻视觉重量）
+  const toastTheme = {
+    info: { fg: "#9f9", bar: "#3f6b3f80" },
+    warn: { fg: "#fd6", bar: "#7a5c1e80" },
+    error: { fg: "#f88", bar: "#7a2d2d80" },
+  } as const
+  const ts = toastTheme[toast?.severity ?? "info"]
 
   return (
     <box flexDirection="column" height="100%" width="100%">
@@ -601,7 +646,7 @@ export function App() {
         filterMode={filterMode}
         filterText={filterText}
         inputRef={filterInputRef}
-        onFilterFocus={() => setFilterMode(true)}
+        onFilterFocus={enterFilterMode}
         onFilter={(v) => {
           setFilterText(v)
           setCursor(0)
@@ -629,6 +674,10 @@ export function App() {
               setCursor(index)
             }}
             onRowDoubleClick={(row) => viewRow(row)}
+            onScrollMove={(delta) => {
+              const max = Math.max(0, rows.length - 1)
+              setCursor((c) => Math.min(max, Math.max(0, c + delta)))
+            }}
           />
         )}
       </box>
@@ -637,10 +686,24 @@ export function App() {
         <text fg="#666">{renderBindingHints(reg.keybindings, filterMode)}</text>
       </box>
 
-      {/* toast */}
+      {/* toast：右下角悬浮通知卡片（参照 opencode 的悬浮 Box 实现） */}
       {toast ? (
-        <box position="absolute" bottom={2} left={0} width="100%" alignItems="center">
-          <text fg={toastFg} bg="#222">{` ${toast.message} `}</text>
+        <box position="absolute" bottom={2} right={1} minWidth={40} maxWidth={80} flexDirection="row">
+          {/* 左侧级别色条：实心背景铺满整卡高度，紧贴左缘（不用 border 字形，
+              字形笔画在单元格内居中会露出左侧底色缝隙） */}
+          <box width={1} backgroundColor={ts.bar} />
+          <box
+            flexDirection="row"
+            alignItems="center"
+            flexGrow={1}
+            backgroundColor="#1d1d26"
+            paddingTop={1}
+            paddingBottom={1}
+            paddingLeft={2}
+            paddingRight={2}
+          >
+            <text fg={ts.fg}>{toast.message}</text>
+          </box>
         </box>
       ) : null}
 

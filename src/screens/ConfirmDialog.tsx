@@ -3,10 +3,11 @@
  *
  * 用于执行破坏性操作（卸载、批量更新）前向用户确认。
  * 居中模态：展示消息（含将执行的命令预览）+ 确定/取消按钮。
- * ← → 在按钮间切换，Enter 选中，Esc 取消。
+ * ← → 在按钮间切换，Enter 选中，Esc 取消；按钮也支持鼠标左键点击。
  * 对应原 Python 项目的 screens/confirm_screen.py。
  */
 
+import { MouseButton } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import { ModalBackdrop } from "../components/ModalBackdrop"
 import { t } from "../i18n"
@@ -46,7 +47,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
 
   return (
     <ModalBackdrop>
-      <box flexDirection="column" borderStyle="rounded" borderColor="#c93" backgroundColor="#1a1a1a" padding={1} width={64}>
+      <box flexDirection="column" backgroundColor="#1a1a1a" padding={1} width={64}>
         <text fg="#eee">{message}</text>
         {commands && commands.length > 0 ? (
           <box flexDirection="column" marginTop={1}>
@@ -58,9 +59,27 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           </box>
         ) : null}
         <box flexDirection="row" marginTop={1} justifyContent="center">
-          <text fg="#fff" bg={yesBg}>{` ${t("button.confirm")} `}</text>
+          <text
+            fg="#fff"
+            bg={yesBg}
+            onMouseDown={(event) => {
+              if (event.button !== MouseButton.LEFT) return
+              event.stopPropagation()
+              setFocus("yes")
+              onConfirm()
+            }}
+          >{` ${t("button.confirm")} `}</text>
           <text>{"  "}</text>
-          <text fg="#fff" bg={noBg}>{` ${t("button.cancel")} `}</text>
+          <text
+            fg="#fff"
+            bg={noBg}
+            onMouseDown={(event) => {
+              if (event.button !== MouseButton.LEFT) return
+              event.stopPropagation()
+              setFocus("no")
+              onCancel()
+            }}
+          >{` ${t("button.cancel")} `}</text>
         </box>
       </box>
     </ModalBackdrop>
