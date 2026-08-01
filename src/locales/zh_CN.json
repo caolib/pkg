@@ -110,6 +110,7 @@
   "error.no_name": "{cls} 必须定义非空的 name 类属性",
   "error.view_failed": "{cmd} {package} 失败",
   "error.view_not_object": "{cmd} {package} 返回了非对象数据",
+  "error.view_unsupported": "{manager} 不支持查看详情",
   "desc.npm": "Node.js 包管理器，用于管理全局安装的 JavaScript 包。",
   "desc.pnpm": "快速、磁盘高效的 Node.js 包管理器。",
   "desc.bun": "快速、全能的 JavaScript 运行时和包管理器。",

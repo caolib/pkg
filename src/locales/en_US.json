@@ -116,6 +116,7 @@
   "error.no_name": "{cls} must define a non-empty name class attribute",
   "error.view_failed": "{cmd} {package} failed",
   "error.view_not_object": "{cmd} {package} returned non-object data",
+  "error.view_unsupported": "{manager} does not support viewing details",
   "desc.npm": "Node.js package manager for globally installed JS packages.",
   "desc.pnpm": "Fast, disk-efficient Node.js package manager.",
   "desc.bun": "Fast, all-in-one JavaScript runtime & package manager.",

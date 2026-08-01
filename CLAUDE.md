@@ -10,7 +10,7 @@
 
 当前为**核心版**：已迁移主界面（已安装列表 + 批量更新/卸载 + 本地过滤 + 仅显示
 可更新）、全局搜索、包详情、确认对话框、设置界面（快捷键/图标/语言，写回
-`~/.config/pkg-tui/config.json`），以及全部 7 个后端（npm/pnpm/bun/winget/scoop/cargo/choco）、
+`~/.config/pkg-tui/config.json`），以及全部 8 个后端（npm/pnpm/bun/winget/scoop/cargo/choco/uv）、
 i18n（中/英）、配置持久化、快捷键配置。
 
 主要功能：
@@ -100,6 +100,7 @@ src/
 │   ├── scoop.ts           # ASCII 表头切列 + cat manifest JSON
 │   ├── cargo.ts           # install --list 正则解析；outdated 逐个 info；search/info 显式走 crates.io（镜像源无搜索 API）
 │   ├── choco.ts           # --limit-output 管道分隔解析；info 键值解析（0 packages found 判失败）
+│   ├── uv.ts              # tool list 正则；outdated 逐个 dry-run 解析（结果在 stderr）；search/view 不支持（uv 无此子命令）
 │   └── index.ts           # import 各后端触发注册 + 统一导出
 ├── components/
 │   ├── PackageTable.tsx   # 自建受控表格（box+text，光标行高亮、鼠标悬浮高亮、勾选前缀、滚动窗口、columnGap 列间隔、横向滚动 scrollX）
@@ -253,8 +254,3 @@ UI 层（顶栏按钮、全部视图、搜索、确认）会自动识别新管�
 - 子进程用 `Bun.spawn([path, ...args])` 以**参数数组**执行（无 shell 拼接），包名直接来自
   CLI 输出，不要引入 `shell: true`。
 - 无遥测、无网络请求发往 npm registry 之外的地方；registry 地址由用户本机 npm 配置决定。
-
-## about `old/`
-
-`old/` 是迁移前的原 Textual/Python 项目（`pkg_tui`），完整保留作为迁移参照。其中
-`old/CLAUDE.md` 描述原项目。新代码在 `src/`，不再依赖 Python。

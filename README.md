@@ -1,7 +1,7 @@
 # pkg
 
 基于 [OpenTUI](https://opentui.org)（React 绑定）的终端 TUI，统一管理本机各种包管理器
-（npm / pnpm / bun / winget / scoop / cargo / choco）。从原 Textual/Python 项目迁移而来（见 `old/`）。
+（npm / pnpm / bun / winget / scoop / cargo / choco / uv）。
 
 ## 功能
 
