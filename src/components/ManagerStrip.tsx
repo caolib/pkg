@@ -8,46 +8,47 @@
  * 处理；本组件只渲染。
  */
 
-import { type ReactNode, type Ref } from "react"
-import type { InputRenderable } from "@opentui/core"
-import { t } from "../i18n"
-import { ALL_MANAGERS, type ManagerRegistry } from "../runtime"
+import { type ReactNode, type Ref } from "react";
+import type { InputRenderable } from "@opentui/core";
+import { t } from "../i18n";
+import { ALL_MANAGERS, type ManagerRegistry } from "../runtime";
 
 /** 顶栏项类型。 */
-export type StripItemKind = "settings" | "search" | "filter" | "manager"
+export type StripItemKind = "settings" | "search" | "filter" | "manager";
 
 export interface StripItem {
-  kind: StripItemKind
+  kind: StripItemKind;
   /** manager 项的管理器名（含 ALL_MANAGERS）；其余为 null */
-  name: string | null
-  label: string
+  name: string | null;
+  label: string;
   /** 是否当前选中的视图（manager 项才可能为 true） */
-  active: boolean
+  active: boolean;
 }
 
 export interface ManagerStripProps {
-  items: StripItem[]
+  items: StripItem[];
   /** 键盘聚焦项索引（对应 items）：聚焦项额外高亮；-1 表示焦点在表格 */
-  stripFocus: number
+  stripFocus: number;
   /** 是否处于过滤输入模式（true 时 input 获得焦点并接收键盘） */
-  filterMode: boolean
-  filterText: string
+  filterMode: boolean;
+  filterText: string;
   /** 过滤输入框实例，供父组件在退出过滤模式时显式 blur */
-  inputRef?: Ref<InputRenderable>
+  inputRef?: Ref<InputRenderable>;
   /** 鼠标点击过滤框时回调：让 filterMode 跟上渲染器的真实焦点 */
-  onFilterFocus?: () => void
-  onFilter: (value: string) => void
-  onButton: (kind: StripItemKind, name: string | null) => void
+  onFilterFocus?: () => void;
+  onFilter: (value: string) => void;
+  onButton: (kind: StripItemKind, name: string | null) => void;
 }
 
 export function ManagerStrip(props: ManagerStripProps): ReactNode {
-  const { items, stripFocus, filterMode, filterText, inputRef, onFilterFocus, onFilter, onButton } = props
+  const { items, stripFocus, filterMode, filterText, inputRef, onFilterFocus, onFilter, onButton } =
+    props;
 
   return (
     <box flexDirection="row" height={1} alignItems="center">
       {items.map((it, i) => {
         if (it.kind === "filter") {
-          const filterFocused = stripFocus >= 0 && stripFocus === i
+          const filterFocused = stripFocus >= 0 && stripFocus === i;
           return (
             <box key={`strip-${i}`} flexGrow={1}>
               <input
@@ -69,18 +70,18 @@ export function ManagerStrip(props: ManagerStripProps): ReactNode {
                 textColor="#eee"
               />
             </box>
-          )
+          );
         }
         // 视觉高亮：active=当前选中视图；focused=键盘聚焦（顶栏模式 ← → 可到达）
-        const focused = stripFocus >= 0 && stripFocus === i
+        const focused = stripFocus >= 0 && stripFocus === i;
         const bg = focused
           ? it.active
             ? "#3d7fc9"
             : "#4a4a4a"
           : it.active
             ? "#264f78"
-            : "#1a1a1a"
-        const fg = focused || it.active ? "#fff" : "#bbb"
+            : "#1a1a1a";
+        const fg = focused || it.active ? "#fff" : "#bbb";
         return (
           <text
             key={`strip-${i}`}
@@ -88,10 +89,10 @@ export function ManagerStrip(props: ManagerStripProps): ReactNode {
             bg={bg}
             onMouseDown={() => onButton(it.kind, it.name)}
           >{` ${it.label} `}</text>
-        )
+        );
       })}
     </box>
-  )
+  );
 }
 
 /** 在 MainScreen 中根据 reg/current 构造顶栏项列表。 */
@@ -100,22 +101,22 @@ export function buildStripItems(reg: ManagerRegistry, current: string): StripIte
     { kind: "settings", name: null, label: t("button.settings"), active: false },
     { kind: "search", name: null, label: t("button.search"), active: false },
     { kind: "filter", name: null, label: t("filter.placeholder"), active: false },
-  ]
+  ];
   items.push({
     kind: "manager",
     name: ALL_MANAGERS,
     label: reg.managerIcon(ALL_MANAGERS) + t("button.all"),
     active: current === ALL_MANAGERS,
-  })
+  });
   for (const n of reg.names) {
-    const st = reg.states.get(n)!
-    if (!st.available || st.disabled) continue
+    const st = reg.states.get(n)!;
+    if (!st.available || st.disabled) continue;
     items.push({
       kind: "manager",
       name: n,
-      label: reg.managerIcon(n) + n,
+      label: reg.managerIcon(n) + reg.managerDisplayName(n),
       active: current === n,
-    })
+    });
   }
-  return items
+  return items;
 }

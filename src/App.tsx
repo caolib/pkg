@@ -262,7 +262,12 @@ export function App() {
           render: (r) => r.latestVersion || "-",
           fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
         },
-        { key: "manager", label: t("col.manager"), width: 12, render: (r) => r.managerName },
+        {
+          key: "manager",
+          label: t("col.manager"),
+          width: 12,
+          render: (r) => reg.managerDisplayName(r.managerName),
+        },
       ]
     : [
         {
@@ -803,6 +808,7 @@ export function App() {
         <SearchScreen
           managers={getAvailableManagers()}
           managerIcon={(name) => reg.managerIcon(name)}
+          managerName={(name) => reg.managerDisplayName(name)}
           onClose={() => setOverlay(null)}
           onView={(mgr, name, title) =>
             setOverlay({
