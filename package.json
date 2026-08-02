@@ -3,7 +3,10 @@
   "version": "1.1.2",
   "description": "Terminal TUI to manage global packages across npm/pnpm/bun/winget/scoop/cargo/choco/uv",
   "license": "Apache-2.0",
-  "repository": "github:caolib/pkg",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/caolib/pkg.git"
+  },
   "keywords": [
     "tui",
     "package-manager",
