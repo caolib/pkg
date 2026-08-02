@@ -1,8 +1,25 @@
 {
-  "name": "pkg",
+  "name": "@caolib/pkg-tui",
+  "version": "1.0.0",
+  "description": "Terminal TUI to manage all package managers (npm/pnpm/bun/winget/scoop/cargo/choco/uv) in one place",
+  "license": "MIT",
+  "repository": "github:caolib/pkg",
+  "keywords": [
+    "tui",
+    "package-manager",
+    "opentui",
+    "terminal",
+    "cli"
+  ],
   "module": "src/index.tsx",
   "type": "module",
-  "private": true,
+  "bin": {
+    "pkg-tui": "bin/pkg-tui.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
     "build": "bun build --compile ./src/index.tsx --outfile dist/pkg-tui",

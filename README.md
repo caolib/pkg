@@ -12,7 +12,21 @@
 
 ## 安装（正式版）
 
-到 [GitHub Releases](https://github.com/caolib/pkg/releases) 下载对应平台的可执行文件：
+两种方式任选：
+
+**方式一：通过 Bun/npm（有 Bun 时推荐，包仅 56KB）**
+
+```bash
+bun i -g pkg-tui && pkg-tui      # 或 npm i -g pkg-tui
+# 不想安装直接跑：
+bunx pkg-tui
+```
+
+需要已安装 [Bun](https://bun.sh)。
+
+**方式二：单文件可执行程序**
+
+到 [GitHub Releases](https://github.com/caolib/pkg/releases) 下载对应平台的可执行文件（约 110MB，无需任何运行时）：
 
 | 平台 | 文件 |
 | ---- | ---- |
