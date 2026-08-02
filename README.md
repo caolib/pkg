@@ -2,16 +2,7 @@
 
 [English](README.md) | [简体中文](docs/README.zh-CN.md)
 
-A terminal TUI built on [OpenTUI](https://opentui.org) that manages all package managers on your machine:
-
-- ✅ npm
-- ✅ pnpm
-- ✅ bun
-- ✅ winget
-- ✅ scoop
-- ✅ cargo
-- ✅ choco
-- ✅ uv
+A terminal TUI built on [OpenTUI](https://opentui.org) that manages multiple package managers
 
 ![screenshot](https://files.seeusercontent.com/2026/08/02/Mth7/image-20260802091230377.png)
 

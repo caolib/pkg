@@ -2,16 +2,7 @@
 
 [English](../README.md) | [简体中文](README.zh-CN.md)
 
-基于 [OpenTUI](https://opentui.org) 的终端 TUI，统一管理本机各种包管理器
-
-- ✅ npm
-- ✅ pnpm
-- ✅ bun
-- ✅ winget
-- ✅ scoop
-- ✅ cargo
-- ✅ choco
-- ✅ uv
+基于 [OpenTUI](https://opentui.org) 的终端 TUI，统一管理多个包管理器
 
 ![截图](https://files.seeusercontent.com/2026/08/02/Mth7/image-20260802091230377.png)
 
