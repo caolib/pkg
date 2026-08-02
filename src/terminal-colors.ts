@@ -6,27 +6,27 @@
  * 应用表面色 #1d1d26（同 toast）。
  */
 
-import type { CliRenderer } from "@opentui/core"
+import type { CliRenderer } from "@opentui/core";
 
 /** 回退背景色：应用表面色（同 toast）。 */
-export const FALLBACK_BACKGROUND = "#1d1d26"
+export const FALLBACK_BACKGROUND = "#1d1d26";
 
-let cached: string | null = null
+let cached: string | null = null;
 
 /** 同步读取已缓存的终端背景色；未检测过返回 null。供 overlay 在初始化时
  *  避免先用 FALLBACK_BACKGROUND 渲染一帧再切换（主页已触发检测时此值已就绪）。 */
 export function getTerminalBackgroundSync(): string | null {
-  return cached
+  return cached;
 }
 
 /** 取终端默认背景色（主页透明时露出的颜色），结果缓存。 */
 export async function getTerminalBackground(renderer: CliRenderer): Promise<string> {
-  if (cached) return cached
+  if (cached) return cached;
   try {
-    const colors = await renderer.getPalette({ size: 16 })
-    cached = colors.defaultBackground ?? FALLBACK_BACKGROUND
+    const colors = await renderer.getPalette({ size: 16 });
+    cached = colors.defaultBackground ?? FALLBACK_BACKGROUND;
   } catch {
-    cached = FALLBACK_BACKGROUND
+    cached = FALLBACK_BACKGROUND;
   }
-  return cached
+  return cached;
 }

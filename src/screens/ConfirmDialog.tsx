@@ -7,43 +7,43 @@
  * 对应原 Python 项目的 screens/confirm_screen.py。
  */
 
-import { MouseButton } from "@opentui/core"
-import { useKeyboard } from "@opentui/react"
-import { ModalBackdrop } from "../components/ModalBackdrop"
-import { t } from "../i18n"
-import { useState } from "react"
+import { MouseButton } from "@opentui/core";
+import { useKeyboard } from "@opentui/react";
+import { ModalBackdrop } from "../components/ModalBackdrop";
+import { t } from "../i18n";
+import { useState } from "react";
 
 export interface ConfirmDialogProps {
-  message: string
+  message: string;
   /** 命令预览行（每行一条将执行的命令），以 cyan 高亮展示 */
-  commands?: string[]
-  onConfirm: () => void
-  onCancel: () => void
+  commands?: string[];
+  onConfirm: () => void;
+  onCancel: () => void;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps) {
-  const { message, commands, onConfirm, onCancel } = props
-  const [focus, setFocus] = useState<"yes" | "no">("yes")
+  const { message, commands, onConfirm, onCancel } = props;
+  const [focus, setFocus] = useState<"yes" | "no">("yes");
 
   useKeyboard((key) => {
     if (key.name === "escape") {
-      onCancel()
-      key.preventDefault()
+      onCancel();
+      key.preventDefault();
     } else if (key.name === "left" || key.name === "right") {
-      setFocus((f) => (f === "yes" ? "no" : "yes"))
-      key.preventDefault()
+      setFocus((f) => (f === "yes" ? "no" : "yes"));
+      key.preventDefault();
     } else if (key.name === "return") {
-      if (focus === "yes") onConfirm()
-      else onCancel()
-      key.preventDefault()
+      if (focus === "yes") onConfirm();
+      else onCancel();
+      key.preventDefault();
     } else if (key.name === "tab") {
-      setFocus((f) => (f === "yes" ? "no" : "yes"))
-      key.preventDefault()
+      setFocus((f) => (f === "yes" ? "no" : "yes"));
+      key.preventDefault();
     }
-  })
+  });
 
-  const yesBg = focus === "yes" ? "#a33" : "#333"
-  const noBg = focus === "no" ? "#264f78" : "#333"
+  const yesBg = focus === "yes" ? "#a33" : "#333";
+  const noBg = focus === "no" ? "#264f78" : "#333";
 
   return (
     <ModalBackdrop>
@@ -53,7 +53,8 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           <box flexDirection="column" marginTop={1}>
             {commands.map((c, i) => (
               <text key={i} fg="#6cf">
-                {"  "}{c}
+                {"  "}
+                {c}
               </text>
             ))}
           </box>
@@ -63,10 +64,10 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             fg="#fff"
             bg={yesBg}
             onMouseDown={(event) => {
-              if (event.button !== MouseButton.LEFT) return
-              event.stopPropagation()
-              setFocus("yes")
-              onConfirm()
+              if (event.button !== MouseButton.LEFT) return;
+              event.stopPropagation();
+              setFocus("yes");
+              onConfirm();
             }}
           >{` ${t("button.confirm")} `}</text>
           <text>{"  "}</text>
@@ -74,14 +75,14 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             fg="#fff"
             bg={noBg}
             onMouseDown={(event) => {
-              if (event.button !== MouseButton.LEFT) return
-              event.stopPropagation()
-              setFocus("no")
-              onCancel()
+              if (event.button !== MouseButton.LEFT) return;
+              event.stopPropagation();
+              setFocus("no");
+              onCancel();
             }}
           >{` ${t("button.cancel")} `}</text>
         </box>
       </box>
     </ModalBackdrop>
-  )
+  );
 }

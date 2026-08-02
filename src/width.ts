@@ -8,7 +8,7 @@
 
 /** 单字符是否占 2 列（宽字符）。 */
 export function isWideChar(ch: string): boolean {
-  const code = ch.codePointAt(0) ?? 0
+  const code = ch.codePointAt(0) ?? 0;
   return (
     (code >= 0x1100 && code <= 0x115f) || // 韩文 Jamo
     (code >= 0x2e80 && code <= 0x303e) || // CJK 部首/标点
@@ -23,30 +23,30 @@ export function isWideChar(ch: string): boolean {
     (code >= 0xffe0 && code <= 0xffe6) || // 全角符号
     (code >= 0x1f000 && code <= 0x1faff) || // 麻将/emoji 扩展
     (code >= 0x20000 && code <= 0x3fffd) // CJK 扩展 B 及之后
-  )
+  );
 }
 
 /** 单字符显示宽度。 */
 export function dispWidthChar(ch: string): number {
-  return isWideChar(ch) ? 2 : 1
+  return isWideChar(ch) ? 2 : 1;
 }
 
 /** 字符串的终端显示宽度。 */
 export function dispWidthStr(s: string): number {
-  let sum = 0
-  for (const ch of s) sum += dispWidthChar(ch)
-  return sum
+  let sum = 0;
+  for (const ch of s) sum += dispWidthChar(ch);
+  return sum;
 }
 
 /** 按显示列区间 [startCol, endCol) 从字符串切片（不截断宽字符）。 */
 export function sliceByDisp(line: string, startCol: number, endCol: number): string {
-  const out: string[] = []
-  let col = 0
+  const out: string[] = [];
+  let col = 0;
   for (const ch of line) {
-    const w = dispWidthChar(ch)
-    if (col + w > startCol && col < endCol) out.push(ch)
-    col += w
-    if (col >= endCol) break
+    const w = dispWidthChar(ch);
+    if (col + w > startCol && col < endCol) out.push(ch);
+    col += w;
+    if (col >= endCol) break;
   }
-  return out.join("")
+  return out.join("");
 }

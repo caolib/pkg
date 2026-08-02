@@ -1,9 +1,9 @@
-import type { ReactNode } from "react"
+import type { ReactNode } from "react";
 
-export const MODAL_BACKDROP_COLOR = "#00000080"
+export const MODAL_BACKDROP_COLOR = "#00000080";
 
 export interface ModalBackdropProps {
-  children: ReactNode
+  children: ReactNode;
 }
 
 export function ModalBackdrop({ children }: ModalBackdropProps) {
@@ -20,5 +20,5 @@ export function ModalBackdrop({ children }: ModalBackdropProps) {
     >
       {children}
     </box>
-  )
+  );
 }

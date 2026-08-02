@@ -10,10 +10,10 @@
  * 因此所有全局键盘分发一律用本函数判断是否有文本输入正在接收按键。
  */
 
-import { InputRenderable, TextareaRenderable, type CliRenderer } from "@opentui/core"
+import { InputRenderable, TextareaRenderable, type CliRenderer } from "@opentui/core";
 
 /** 当前渲染器焦点是否落在文本输入类组件（input / textarea）上。 */
 export function isTextInputFocused(renderer: CliRenderer): boolean {
-  const focused = renderer.currentFocusedRenderable
-  return focused instanceof InputRenderable || focused instanceof TextareaRenderable
+  const focused = renderer.currentFocusedRenderable;
+  return focused instanceof InputRenderable || focused instanceof TextareaRenderable;
 }

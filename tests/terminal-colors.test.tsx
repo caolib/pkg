@@ -7,27 +7,30 @@
  *
  * 运行：bun test
  */
-import { test } from "bun:test"
-import { testRender } from "@opentui/react/test-utils"
-import { getTerminalBackground, getTerminalBackgroundSync } from "../src/terminal-colors"
+import { test } from "bun:test";
+import { testRender } from "@opentui/react/test-utils";
+import { getTerminalBackground, getTerminalBackgroundSync } from "../src/terminal-colors";
 
 test("getTerminalBackgroundSync 缓存可用性", async () => {
   const check = (cond: boolean, msg: string) => {
-    if (!cond) throw new Error(msg)
-    console.log("  ✓", msg)
-  }
+    if (!cond) throw new Error(msg);
+    console.log("  ✓", msg);
+  };
 
   // 用 testRender 拿到一个 CliRenderer（有 getPalette）；渲染一个空 box
-  const setup = await testRender(<box />, { width: 40, height: 8 })
+  const setup = await testRender(<box />, { width: 40, height: 8 });
   try {
-    const syncBefore = getTerminalBackgroundSync()
-    check(syncBefore === null || typeof syncBefore === "string", "检测前同步值 null 或已有缓存字符串")
+    const syncBefore = getTerminalBackgroundSync();
+    check(
+      syncBefore === null || typeof syncBefore === "string",
+      "检测前同步值 null 或已有缓存字符串",
+    );
 
-    const bg = await getTerminalBackground(setup.renderer)
-    const syncAfter = getTerminalBackgroundSync()
-    check(syncAfter === bg, `检测后同步值等于异步值（${bg}）`)
-    check(syncAfter !== null, "检测后同步缓存非空（overlay 可同步初始化避免闪烁）")
+    const bg = await getTerminalBackground(setup.renderer);
+    const syncAfter = getTerminalBackgroundSync();
+    check(syncAfter === bg, `检测后同步值等于异步值（${bg}）`);
+    check(syncAfter !== null, "检测后同步缓存非空（overlay 可同步初始化避免闪烁）");
   } finally {
-    setup.renderer.destroy()
+    setup.renderer.destroy();
   }
-})
+});
