@@ -13,6 +13,7 @@
  */
 
 import { t } from "../i18n";
+import { opLog } from "../ops";
 
 export class ManagerError extends Error {}
 
@@ -20,6 +21,11 @@ export interface RunResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+}
+
+export interface RunOptions {
+  /** 将命令执行过程记录到操作日志（"命令输出"界面实时查看用） */
+  log?: boolean;
 }
 
 /** 可执行文件的解析结果：直调 或 经 cmd /c 回退。 */
@@ -57,11 +63,21 @@ async function resolveExecutable(executable: string, args: string[]): Promise<Re
 /**
  * 异步执行一个 CLI 命令，返回 {stdout, stderr, exitCode}。
  * 找不到可执行文件时抛出 ManagerError(not_found)。
+ * opts.log 为 true 时把执行过程实时写入操作日志（ops.opLog），供
+ * "命令输出"界面查看——安装/更新/卸载等操作命令请务必传 { log: true }。
  */
-export async function runCommand(executable: string, args: string[]): Promise<RunResult> {
+export async function runCommand(
+  executable: string,
+  args: string[],
+  opts?: RunOptions,
+): Promise<RunResult> {
+  const entry = opts?.log ? opLog.begin(`${executable} ${args.join(" ")}`) : null;
+
   const resolved = await resolveExecutable(executable, args);
   if (resolved === null) {
-    throw new ManagerError(t("error.not_found", { exe: executable }));
+    const err = new ManagerError(t("error.not_found", { exe: executable }));
+    if (entry) opLog.fail(entry, err.message);
+    throw err;
   }
 
   const proc = Bun.spawn(resolved.argv, {
@@ -70,14 +86,36 @@ export async function runCommand(executable: string, args: string[]): Promise<Ru
   });
 
   let exitCode: number;
-  let stdoutBytes: Uint8Array;
-  let stderrBytes: Uint8Array;
+  let stdout = "";
+  let stderr = "";
+  // 流式解码：chunk 可能在多字节字符中间断开，需 stream:true + 收尾 flush
+  const outDec = new TextDecoder("utf-8", { fatal: false });
+  const errDec = new TextDecoder("utf-8", { fatal: false });
+
+  const readStream = async (
+    stream: ReadableStream<Uint8Array> | null,
+    decoder: TextDecoder,
+    onText: (text: string) => void,
+  ) => {
+    if (!stream) return;
+    for await (const chunk of stream) {
+      onText(decoder.decode(chunk, { stream: true }));
+    }
+    onText(decoder.decode());
+  };
+
   try {
     // 并发读取两个输出流，避免管道写满后阻塞
-    [stdoutBytes, stderrBytes, exitCode] = await Promise.all([
-      new Response(proc.stdout).arrayBuffer().then((b) => new Uint8Array(b)),
-      new Response(proc.stderr).arrayBuffer().then((b) => new Uint8Array(b)),
+    [exitCode] = await Promise.all([
       proc.exited,
+      readStream(proc.stdout, outDec, (text) => {
+        stdout += text;
+        if (entry) opLog.appendText(entry, "out", text);
+      }),
+      readStream(proc.stderr, errDec, (text) => {
+        stderr += text;
+        if (entry) opLog.appendText(entry, "err", text);
+      }),
     ]);
   } catch (err) {
     // 任务被取消或其他异常时尽力清理子进程，避免遗留壳进程
@@ -86,15 +124,12 @@ export async function runCommand(executable: string, args: string[]): Promise<Ru
     } catch {
       // ignore
     }
+    if (entry) opLog.fail(entry, err instanceof Error ? err.message : String(err));
     throw err;
   }
 
-  const decoder = new TextDecoder("utf-8", { fatal: false });
-  return {
-    stdout: decoder.decode(stdoutBytes),
-    stderr: decoder.decode(stderrBytes),
-    exitCode,
-  };
+  if (entry) opLog.finish(entry, exitCode);
+  return { stdout, stderr, exitCode };
 }
 
 /** 安全解析 JSON。失败时返回空 dict（适合对象输出）。 */

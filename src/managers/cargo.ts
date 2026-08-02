@@ -200,18 +200,24 @@ class CargoPackageManager extends PackageManager {
   }
 
   async install(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("cargo", ["install", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("cargo", ["install", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
   /** cargo install 在已有更新版本时即执行更新。 */
   async update(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("cargo", ["install", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("cargo", ["install", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "update");
   }
 
   async uninstall(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("cargo", ["uninstall", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("cargo", ["uninstall", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "uninstall");
   }
 

@@ -18,6 +18,7 @@ i18n（中/英）、配置持久化、快捷键配置。
 - 列出各包管理器已安装的**全局**包（"全部"视图聚合所有可用管理器，每行标注来源）
 - 查看可更新的包、批量勾选更新、卸载（带确认框 + 命令预览）
 - 全局搜索包（同 registry 的管理器只搜一次）、查看包详情、安装包
+- 命令输出查看（`o`）：安装/更新/卸载的实时执行日志，运行中自动跟随底部
 - 本地过滤框按包名实时过滤当前列表
 
 界面语言默认随系统 locale（zh_CN/en_US），可经配置文件切换。
@@ -81,6 +82,8 @@ src/
 │                          #   overlay 栈（search/detail/confirm）、toast、表格/顶栏/底栏
 ├── runtime.ts             # 领域逻辑层（不依赖渲染）：ManagerRegistry、buildInstalledRows、
 │                          #   buildSearchGroups(registry 去重)、previewCommands、doUpdateAll/doUninstallAll
+├── ops.ts                 # 命令执行日志（OpLog 单例）：_cli.runCommand({log:true}) 逐行写入
+│                          #   stdout/stderr，OutputScreen 订阅实时查看（无渲染依赖，可独立测试）
 ├── focus.ts               # isTextInputFocused(renderer)：判断渲染器焦点是否在文本输入框
 │                          #   （本地 state 不可信，见运行时要点）
 ├── i18n.ts                # t() 翻译 + 语言检测/切换
@@ -112,6 +115,8 @@ src/
     ├── ConfirmDialog.tsx  # 确认框（命令预览 + 确定/取消）
     ├── SearchScreen.tsx   # 搜索（registry 分组并发，i 安装 / v 详情；失败来源在状态栏标注）
     ├── DetailScreen.tsx   # 包详情（后台 view，加载态，更新/删除/关闭）
+    ├── OutputScreen.tsx   # 命令输出（安装/更新/卸载执行日志：左条目列表 + 右 sticky 输出区，
+    │                      #   运行中实时追加并跟随底部，↑↓ 切条目，PgUp/PgDn/Home/End 滚动）
     └── SettingsScreen.tsx # 设置（快捷键/图标/语言，保存回 config.json；自建列表交互
                            #   同 PackageTable，见设置界面鼠标行为段落与 settings-screen-mouse 测试）
 ```
@@ -211,6 +216,12 @@ src/
     为避免"先渲染一帧 FALLBACK 深色再切到真实背景"的闪烁，`App` 启动时即调
     `getTerminalBackground(renderer)` 预填**模块级缓存**，overlay 挂载时用
     `getTerminalBackgroundSync()` 同步读缓存初始化。新增 overlay 时同样走这套。
+  - **命令输出日志（`ops.ts`）**：安装/更新/卸载的执行日志由 `_cli.runCommand` 在
+    `{ log: true }` 时实时写入 `ops.opLog`（OpLog 单例：跨 chunk 拼行、`\r` 进度帧折叠、
+    ANSI 清洗、条目/行数上限）。`OutputScreen` 打开时 `subscribe` 推送重渲染，运行中
+    输出实时追加；关闭即退订。**新增加入操作日志的命令必须传 `{ log: true }`**，
+    否则用户在"命令输出"界面看不到它；纯查询类命令不要传。opLog 是 mutable 单例，
+    OutputScreen 每次渲染直接读 `opLog.entries`（同 ManagerRegistry 的刷新约定）。
 - **状态刷新**：`ManagerRegistry`（`useRef` 单例）内部是 mutable；数据加载后调 `rerender()`
   强制重渲染，`buildInstalledRows`/`buildStripItems` 每次**直接计算**（不能用 `useMemo` 缓存，
   否则 reg 内部变化不会反映）。
@@ -220,6 +231,7 @@ src/
 | 按键（默认，可在 config.json 改） | 功能                 |
 | ---------------------------------- | -------------------- |
 | `s`                                | 打开搜索             |
+| `o`                                | 查看命令输出（安装/更新/卸载日志） |
 | `r`                                | 刷新                 |
 | `u`                                | 更新选中（或当前行） |
 | `d`                                | 卸载选中（或当前行） |

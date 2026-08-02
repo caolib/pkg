@@ -263,17 +263,23 @@ class ScoopPackageManager extends PackageManager {
   // ------------------------------------------------------------------
 
   async install(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("scoop", ["install", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("scoop", ["install", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
   async update(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("scoop", ["update", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("scoop", ["update", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "update");
   }
 
   async uninstall(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("scoop", ["uninstall", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("scoop", ["uninstall", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "uninstall");
   }
 

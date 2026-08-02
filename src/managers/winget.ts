@@ -386,33 +386,29 @@ class WingetPackageManager extends PackageManager {
   // ------------------------------------------------------------------
 
   async install(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("winget", [
-      "install",
-      packageName,
-      "-e",
-      ..._ACCEPT_ARGS,
-    ]);
+    const { stdout, stderr, exitCode } = await runCommand(
+      "winget",
+      ["install", packageName, "-e", ..._ACCEPT_ARGS],
+      { log: true },
+    );
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
   async update(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("winget", [
-      "upgrade",
-      packageName,
-      "-e",
-      ..._ACCEPT_ARGS,
-    ]);
+    const { stdout, stderr, exitCode } = await runCommand(
+      "winget",
+      ["upgrade", packageName, "-e", ..._ACCEPT_ARGS],
+      { log: true },
+    );
     return _makeResult(stdout, stderr, exitCode, packageName, "update");
   }
 
   async uninstall(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("winget", [
-      "uninstall",
-      packageName,
-      "-e",
-      "--purge",
-      ..._ACCEPT_ARGS,
-    ]);
+    const { stdout, stderr, exitCode } = await runCommand(
+      "winget",
+      ["uninstall", packageName, "-e", "--purge", ..._ACCEPT_ARGS],
+      { log: true },
+    );
     return _makeResult(stdout, stderr, exitCode, packageName, "uninstall");
   }
 

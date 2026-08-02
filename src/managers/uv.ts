@@ -103,17 +103,25 @@ class UvPackageManager extends PackageManager {
   }
 
   async install(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("uv", ["tool", "install", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("uv", ["tool", "install", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
   async update(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("uv", ["tool", "upgrade", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("uv", ["tool", "upgrade", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "update");
   }
 
   async uninstall(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("uv", ["tool", "uninstall", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand(
+      "uv",
+      ["tool", "uninstall", packageName],
+      { log: true },
+    );
     return _makeResult(stdout, stderr, exitCode, packageName, "uninstall");
   }
 

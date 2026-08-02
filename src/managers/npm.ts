@@ -81,30 +81,36 @@ class NpmPackageManager extends PackageManager {
   }
 
   async install(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("npm", ["install", "-g", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("npm", ["install", "-g", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
   async update(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("npm", [
-      "install",
-      "-g",
-      packageName + "@latest",
-    ]);
+    const { stdout, stderr, exitCode } = await runCommand(
+      "npm",
+      ["install", "-g", packageName + "@latest"],
+      { log: true },
+    );
     return _makeResult(stdout, stderr, exitCode, packageName, "update");
   }
 
   async updateAll(packageNames: string[]): Promise<OperationResult[]> {
     if (packageNames.length === 0) return [];
     const specs = packageNames.map((n) => `${n}@latest`);
-    const { stdout, stderr, exitCode } = await runCommand("npm", ["install", "-g", ...specs]);
+    const { stdout, stderr, exitCode } = await runCommand("npm", ["install", "-g", ...specs], {
+      log: true,
+    });
     const message = stdout.trim() || stderr.trim();
     const success = exitCode === 0;
     return packageNames.map((name) => ({ success, message, package: name }));
   }
 
   async uninstall(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("npm", ["uninstall", "-g", packageName]);
+    const { stdout, stderr, exitCode } = await runCommand("npm", ["uninstall", "-g", packageName], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "uninstall");
   }
 

@@ -24,6 +24,7 @@ export interface Config {
 export const DEFAULT_BINDINGS: [string, string, string, boolean][] = [
   ["open_settings", "alt+s", "binding.settings", true],
   ["open_search", "s", "binding.search", true],
+  ["view_output", "o", "binding.output", true],
   ["refresh_all", "r", "binding.refresh", true],
   ["update_selected", "u", "binding.update", true],
   ["uninstall_selected", "d", "binding.uninstall", true],

@@ -94,21 +94,25 @@ class ChocoPackageManager extends PackageManager {
   }
 
   async install(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("choco", ["install", packageName, "-y"]);
+    const { stdout, stderr, exitCode } = await runCommand("choco", ["install", packageName, "-y"], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
   async update(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("choco", ["upgrade", packageName, "-y"]);
+    const { stdout, stderr, exitCode } = await runCommand("choco", ["upgrade", packageName, "-y"], {
+      log: true,
+    });
     return _makeResult(stdout, stderr, exitCode, packageName, "update");
   }
 
   async uninstall(packageName: string): Promise<OperationResult> {
-    const { stdout, stderr, exitCode } = await runCommand("choco", [
-      "uninstall",
-      packageName,
-      "-y",
-    ]);
+    const { stdout, stderr, exitCode } = await runCommand(
+      "choco",
+      ["uninstall", packageName, "-y"],
+      { log: true },
+    );
     return _makeResult(stdout, stderr, exitCode, packageName, "uninstall");
   }
 
