@@ -24,6 +24,7 @@ import {
   getManagerIcons,
   getManagerNames,
   getUserManagerChoices,
+  getAutoCheckUpdates,
   loadConfig,
   saveConfig,
   configExists,
@@ -78,6 +79,8 @@ export class ManagerRegistry {
   searchKeybindings: Record<string, string> = defaultSearchKeybindings();
   managerIcons: Record<string, string> = {};
   managerNames: Record<string, string> = {};
+  /** 打开首页时自动检查更新(默认开启,可在设置界面关闭)。 */
+  autoCheckUpdates = true;
   config: Config = {};
 
   /** 构造所有已注册管理器的运行时状态。 */
@@ -110,6 +113,7 @@ export class ManagerRegistry {
     this.searchKeybindings = getSearchKeybindings(this.config);
     this.managerIcons = getManagerIcons(this.config);
     this.managerNames = getManagerNames(this.config);
+    this.autoCheckUpdates = getAutoCheckUpdates(this.config);
     const userChoices = getUserManagerChoices(this.config);
     for (const name of this.disabledManagers) {
       const st = this.states.get(name);
@@ -256,6 +260,7 @@ export class ManagerRegistry {
       keybindings: disk.keybindings ?? this.keybindings,
       search_keybindings: disk.search_keybindings ?? this.searchKeybindings,
       language: this.config.language || "",
+      auto_check_updates: this.autoCheckUpdates,
       manager_icons: { ...this.defaultManagerIcons(), ...this.managerIcons },
       manager_names: { ...this.defaultManagerNames(), ...this.managerNames },
       user_manager_choices: Object.fromEntries(

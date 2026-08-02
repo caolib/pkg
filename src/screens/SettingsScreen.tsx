@@ -43,6 +43,7 @@ export interface SettingsScreenProps {
 type Row =
   | { kind: "mgr"; name: string }
   | { kind: "lang" }
+  | { kind: "autocheck" }
   | { kind: "checkall" }
   | { kind: "opendir" }
   | { kind: "done" };
@@ -83,6 +84,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
   const rows: Row[] = [
     ...reg.names.map((n): Row => ({ kind: "mgr", name: n })),
     { kind: "lang" },
+    { kind: "autocheck" },
     { kind: "checkall" },
     { kind: "opendir" },
     { kind: "done" },
@@ -160,6 +162,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
   function activate(row: Row) {
     if (row.kind === "mgr") toggleManager(row.name);
     else if (row.kind === "lang") toggleLanguage();
+    else if (row.kind === "autocheck") toggleAutoCheck();
     else if (row.kind === "checkall") checkAll();
     else if (row.kind === "opendir") openDir();
     else if (row.kind === "done") finish();
@@ -180,6 +183,11 @@ export function SettingsScreen(props: SettingsScreenProps) {
     const next = lang === "zh_CN" ? "en_US" : "zh_CN";
     setLanguage(next);
     setLang(next);
+    rerender();
+  }
+
+  function toggleAutoCheck() {
+    reg.autoCheckUpdates = !reg.autoCheckUpdates;
     rerender();
   }
 
@@ -301,6 +309,19 @@ export function SettingsScreen(props: SettingsScreenProps) {
                     {lang === "zh_CN" ? t("settings.lang_zh") : t("settings.lang_en")}
                   </text>
                   <text fg="#888">{"(l 切换)"}</text>
+                </box>
+              );
+            }
+            if (row.kind === "autocheck") {
+              return (
+                <box key="autocheck" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
+                  <text width={22} fg="#888">
+                    {t("settings.auto_check_updates")}
+                  </text>
+                  <text width={10} fg={reg.autoCheckUpdates ? "#8f8" : "#888"}>
+                    {reg.autoCheckUpdates ? t("settings.on") : t("settings.off")}
+                  </text>
+                  <text fg="#888">{t("settings.auto_check_hint")}</text>
                 </box>
               );
             }

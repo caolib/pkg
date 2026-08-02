@@ -60,9 +60,9 @@ test("冒烟测试：主界面启动 + 设置 overlay + 光标/勾选交互", as
     // 关闭设置：↓ 移到末尾"完成"行再 Enter。逐键 act+render 让 useKeyboard
     // 回调闭包刷新（同 act 内批量发键会因闭包陈旧导致 cursor 不累积）。
     // 真实终端每次按键间会重新渲染，无此问题；testRender 需逐键。
-    // 行数 = 管理器数 + 4（语言/检查全部/打开目录/完成），从首行走到"完成"需
+    // 行数 = 管理器数 + 5(语言/自动检查更新/检查全部/打开目录/完成),从首行走到"完成"需
     // 按 ↓ (行数-1) 次；按死数字会在行数变化时落到"打开目录"行把目录打开。
-    const donePresses = Object.keys(listManagers()).length + 3;
+    const donePresses = Object.keys(listManagers()).length + 4;
     for (let i = 0; i < donePresses; i++) {
       await act(async () => {
         setup.mockInput.pressArrow("down");

@@ -107,7 +107,7 @@
   "binding.install": "Install",
   "binding.detail": "Details",
   "binding.back": "Back",
-  "binding.output": "Output",
+  "binding.output": "View Output",
   "output.title": "Command Output",
   "output.empty": "No command output yet",
   "output.status_running": "Running",
@@ -142,5 +142,10 @@
   "result.uninstall_ok": "Uninstalled {package}",
   "result.install_failed": "Failed to install {package}",
   "result.update_failed": "Failed to update {package}",
-  "result.uninstall_failed": "Failed to uninstall {package}"
+  "result.uninstall_failed": "Failed to uninstall {package}",
+  "binding.check_updates": "Check Updates",
+  "settings.auto_check_updates": "Auto Check Updates",
+  "settings.auto_check_hint": "(on home open)",
+  "settings.on": "On",
+  "settings.off": "Off"
 }

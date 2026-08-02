@@ -18,6 +18,8 @@ export interface Config {
   language?: string;
   manager_icons?: Record<string, string>;
   manager_names?: Record<string, string>;
+  /** 打开首页时自动检查更新(默认 true,可在设置界面关闭)。 */
+  auto_check_updates?: boolean;
   /** 用户手动切换过启用/禁用的管理器（true=禁用，false=启用）；
    *  未列出的管理器以自动检测结果为准。 */
   user_manager_choices?: Record<string, boolean>;
@@ -29,6 +31,7 @@ export const DEFAULT_BINDINGS: [string, string, string, boolean][] = [
   ["open_search", "s", "binding.search", true],
   ["view_output", "o", "binding.output", true],
   ["refresh_all", "r", "binding.refresh", true],
+  ["check_updates", "c", "binding.check_updates", true],
   ["update_selected", "u", "binding.update", true],
   ["uninstall_selected", "d", "binding.uninstall", true],
   ["toggle_select", "space", "binding.toggle", true],
@@ -167,4 +170,9 @@ export function getUserManagerChoices(config: Config): Record<string, boolean> {
   const out: Record<string, boolean> = {};
   for (const [k, v] of Object.entries(raw)) out[k] = Boolean(v);
   return out;
+}
+
+/** 从配置中提取"打开首页自动检查更新"开关,缺失时默认 true。 */
+export function getAutoCheckUpdates(config: Config): boolean {
+  return config.auto_check_updates !== false;
 }

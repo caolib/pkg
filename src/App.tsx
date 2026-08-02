@@ -166,7 +166,8 @@ export function App() {
       // 避免先用 FALLBACK_BACKGROUND 渲染一帧深色再切到真实背景的闪烁
       getTerminalBackground(renderer);
       rerender();
-      await loadCurrentView();
+      // 打开首页自动检查更新可在设置中关闭;关闭时只加载已安装列表
+      await loadCurrentView(undefined, { skipOutdated: !reg.autoCheckUpdates });
     })();
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -188,9 +189,10 @@ export function App() {
   // ------------------------------------------------------------------
   // 数据加载
   // ------------------------------------------------------------------
-  /** 加载当前视图数据。name 显式传参：switchManager 等调用方在 setState
-   *  之后闭包里的 current 仍是旧值，直接读闭包会加载错视图（见 switchManager）。 */
-  async function loadCurrentView(name?: string) {
+  /** 加载当前视图数据。name 显式传参:switchManager 等调用方在 setState
+   *  之后闭包里的 current 仍是旧值,直接读闭包会加载错视图(见 switchManager)。
+   *  opts.skipOutdated: 跳过"可更新"检查(设置里关闭"打开首页自动检查更新"时用)。 */
+  async function loadCurrentView(name?: string, opts?: { skipOutdated?: boolean }) {
     rerender();
     const managers = reg.activeManagers(name ?? current);
     // 先清未加载管理器的 installed
@@ -214,6 +216,7 @@ export function App() {
     }
     // 逐个检查 outdated，完成即刷新
     for (const st of managers) {
+      if (opts?.skipOutdated) break;
       if (st.loadedOutdated) continue;
       try {
         st.outdated = await st.instance.listOutdated();
@@ -237,6 +240,15 @@ export function App() {
   /** 只失效并重载指定管理器的缓存（如安装/更新/卸载只影响目标管理器）。 */
   function reloadManagers(names: Iterable<string>) {
     for (const n of names) reg.invalidate(n);
+    loadCurrentView();
+  }
+
+  /** 只重载"可更新"缓存(installed 列表未变,如设置界面返回后的更新检查)。 */
+  function reloadOutdated() {
+    for (const st of reg.states.values()) {
+      st.loadedOutdated = false;
+      st.outdatedMap = new Map();
+    }
     loadCurrentView();
   }
 
@@ -591,6 +603,11 @@ export function App() {
       key.preventDefault();
       return;
     }
+    if (matchBinding(key, kb.check_updates)) {
+      reloadOutdated();
+      key.preventDefault();
+      return;
+    }
     if (matchBinding(key, kb.toggle_filter_updates)) {
       setFilterUpdates((v) => !v);
       setCursor(0);
@@ -713,11 +730,12 @@ export function App() {
     // 刷新顶栏按钮（可用性/禁用态可能变了）并重载数据。
     // current 未变才能安全 reloadAll（闭包 current 仍有效）；变了的走
     // switchManager（内部已用新名字 loadCurrentView，避免旧闭包加载旧视图）
+    // 设置界面返回只重载"可更新"检查,不重复拉取 installed 列表。
     if (currentDisabled) {
       switchManager(ALL_MANAGERS);
     } else {
       rerender();
-      reloadAll();
+      reloadOutdated();
     }
   }
 
