@@ -24,12 +24,11 @@ A terminal TUI built on [OpenTUI](https://opentui.org) that manages all package 
 
 ## Installation
 
-### Recommended: via Bun/npm (package is only 56KB)
+### Recommended: via bun/npm
 
 ```bash
 bun i -g @caolib/pkg-tui      # or npm i -g @caolib/pkg-tui
-# Run without installing:
-bunx @caolib/pkg-tui
+pkg							  # run
 ```
 
 <details>
