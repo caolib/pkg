@@ -10,12 +10,32 @@
 - 全局搜索包（同 registry 只搜一次）、查看详情、安装
 - 本地过滤框、仅显示可更新
 
-## 运行
+## 安装（正式版）
+
+到 [GitHub Releases](https://github.com/caolib/pkg/releases) 下载对应平台的可执行文件：
+
+| 平台 | 文件 |
+| ---- | ---- |
+| Windows x64 | `pkg-tui-x86_64-pc-windows-msvc.exe` |
+| Linux x64 | `pkg-tui-x86_64-unknown-linux-gnu` |
+| macOS arm64 | `pkg-tui-aarch64-apple-darwin` |
+
+Windows PowerShell 一键安装：
+
+```powershell
+irm https://github.com/caolib/pkg/releases/latest/download/pkg-tui-x86_64-pc-windows-msvc.exe -o ~\pkg-tui.exe
+```
+
+下载后把 `pkg-tui` 加入 PATH 即可直接运行。
+
+## 从源码运行
 
 ```bash
 bun install
-bun dev          # 或 bun run src/index.tsx
+bun dev          # 即 bun run src/index.tsx
 ```
+
+构建单文件可执行程序：`bun run build`（输出到 `dist/`，要求 Bun ≥ 1.3.14）。
 
 类型检查：`bunx tsc --noEmit`
 
