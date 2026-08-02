@@ -29,21 +29,24 @@ bunx @caolib/pkg-tui
 <details>
 <summary><b>备选：单文件可执行程序</b>（约 110MB，无需任何运行时）</summary>
 
-到 [GitHub Releases](https://github.com/caolib/pkg/releases) 下载对应平台的可执行文件：
+<p>到 <a href="https://github.com/caolib/pkg/releases">GitHub Releases</a> 下载对应平台的可执行文件：</p>
 
-| 平台 | 文件 |
-| ---- | ---- |
-| Windows x64 | `pkg-tui-x86_64-pc-windows-msvc.exe` |
-| Linux x64 | `pkg-tui-x86_64-unknown-linux-gnu` |
-| macOS arm64 | `pkg-tui-aarch64-apple-darwin` |
+<table>
+<thead>
+<tr><th>平台</th><th>文件</th></tr>
+</thead>
+<tbody>
+<tr><td>Windows x64</td><td><code>pkg-tui-x86_64-pc-windows-msvc.exe</code></td></tr>
+<tr><td>Linux x64</td><td><code>pkg-tui-x86_64-unknown-linux-gnu</code></td></tr>
+<tr><td>macOS arm64</td><td><code>pkg-tui-aarch64-apple-darwin</code></td></tr>
+</tbody>
+</table>
 
-Windows PowerShell 一键安装：
+<p>Windows PowerShell 一键安装：</p>
 
-```powershell
-irm https://github.com/caolib/pkg/releases/latest/download/pkg-tui-x86_64-pc-windows-msvc.exe -o ~\pkg-tui.exe
-```
+<pre><code>irm https://github.com/caolib/pkg/releases/latest/download/pkg-tui-x86_64-pc-windows-msvc.exe -o ~\pkg-tui.exe</code></pre>
 
-下载后把 `pkg-tui` 加入 PATH 即可直接运行。
+<p>下载后把 <code>pkg-tui</code> 加入 PATH 即可直接运行。</p>
 
 </details>
 

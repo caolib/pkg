@@ -28,21 +28,24 @@ Requires [Bun](https://bun.sh).
 <details>
 <summary><b>Alternative: standalone executable</b> (~110MB, no runtime needed)</summary>
 
-Download the executable for your platform from [GitHub Releases](https://github.com/caolib/pkg/releases):
+<p>Download the executable for your platform from <a href="https://github.com/caolib/pkg/releases">GitHub Releases</a>:</p>
 
-| Platform | File |
-| ---- | ---- |
-| Windows x64 | `pkg-tui-x86_64-pc-windows-msvc.exe` |
-| Linux x64 | `pkg-tui-x86_64-unknown-linux-gnu` |
-| macOS arm64 | `pkg-tui-aarch64-apple-darwin` |
+<table>
+<thead>
+<tr><th>Platform</th><th>File</th></tr>
+</thead>
+<tbody>
+<tr><td>Windows x64</td><td><code>pkg-tui-x86_64-pc-windows-msvc.exe</code></td></tr>
+<tr><td>Linux x64</td><td><code>pkg-tui-x86_64-unknown-linux-gnu</code></td></tr>
+<tr><td>macOS arm64</td><td><code>pkg-tui-aarch64-apple-darwin</code></td></tr>
+</tbody>
+</table>
 
-One-liner install on Windows PowerShell:
+<p>One-liner install on Windows PowerShell:</p>
 
-```powershell
-irm https://github.com/caolib/pkg/releases/latest/download/pkg-tui-x86_64-pc-windows-msvc.exe -o ~\pkg-tui.exe
-```
+<pre><code>irm https://github.com/caolib/pkg/releases/latest/download/pkg-tui-x86_64-pc-windows-msvc.exe -o ~\pkg-tui.exe</code></pre>
 
-Put `pkg-tui` in your PATH and you're done.
+<p>Put <code>pkg-tui</code> in your PATH and you're done.</p>
 
 </details>
 
