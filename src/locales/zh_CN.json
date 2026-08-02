@@ -48,7 +48,7 @@
   "button.cancel": "取消",
   "button.update": "更新",
   "button.delete": "删除",
-  "button.close": "关闭 [Esc]",
+  "button.close": "关闭",
   "detail.loading": "加载中...",
   "detail.load_failed": "详情加载失败: {exc}",
   "detail.version": "版本",
@@ -136,5 +136,13 @@
   "settings.auto_check_updates": "自动检查更新",
   "settings.auto_check_hint": "(打开首页时)",
   "settings.on": "开",
-  "settings.off": "关"
+  "settings.off": "关",
+  "button.install_version": "安装版本",
+  "confirm.install_version": "确定要安装 [bold cyan]{name}[/] 版本 [bold cyan]{version}[/] 吗?\n\n将执行:",
+  "version.title": "选择版本",
+  "version.filter_placeholder": "过滤版本...",
+  "version.current": "(当前)",
+  "version.no_match": "无匹配版本",
+  "version.page": "第 {page}/{total} 页",
+  "version.hint": "↑↓ 选择  ←→ 翻页  Enter 确认  Esc 取消"
 }

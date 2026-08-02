@@ -106,6 +106,14 @@ class BunPackageManager extends PackageManager {
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
+  async installVersion(packageName: string, version: string): Promise<OperationResult> {
+    const spec = `${packageName}@${version}`;
+    const { stdout, stderr, exitCode } = await runCommand("bun", ["add", "-g", spec], {
+      log: true,
+    });
+    return _makeResult(stdout, stderr, exitCode, spec, "install");
+  }
+
   async update(packageName: string): Promise<OperationResult> {
     const { stdout, stderr, exitCode } = await runCommand("bun", ["update", "-g", packageName], {
       log: true,
@@ -122,6 +130,10 @@ class BunPackageManager extends PackageManager {
 
   installCommand(packageName: string): string {
     return `bun add -g ${packageName}`;
+  }
+
+  installVersionCommand(packageName: string, version: string): string {
+    return `bun add -g ${packageName}@${version}`;
   }
 
   updateCommand(packageNames: string[]): string {

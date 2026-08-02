@@ -87,6 +87,14 @@ class NpmPackageManager extends PackageManager {
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
+  async installVersion(packageName: string, version: string): Promise<OperationResult> {
+    const spec = `${packageName}@${version}`;
+    const { stdout, stderr, exitCode } = await runCommand("npm", ["install", "-g", spec], {
+      log: true,
+    });
+    return _makeResult(stdout, stderr, exitCode, spec, "install");
+  }
+
   async update(packageName: string): Promise<OperationResult> {
     const { stdout, stderr, exitCode } = await runCommand(
       "npm",
@@ -116,6 +124,10 @@ class NpmPackageManager extends PackageManager {
 
   installCommand(packageName: string): string {
     return `npm install -g ${packageName}`;
+  }
+
+  installVersionCommand(packageName: string, version: string): string {
+    return `npm install -g ${packageName}@${version}`;
   }
 
   updateCommand(packageNames: string[]): string {

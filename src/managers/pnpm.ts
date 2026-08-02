@@ -100,6 +100,14 @@ class PnpmPackageManager extends PackageManager {
     return _makeResult(stdout, stderr, exitCode, packageName, "install");
   }
 
+  async installVersion(packageName: string, version: string): Promise<OperationResult> {
+    const spec = `${packageName}@${version}`;
+    const { stdout, stderr, exitCode } = await runCommand("pnpm", ["add", "-g", spec], {
+      log: true,
+    });
+    return _makeResult(stdout, stderr, exitCode, spec, "install");
+  }
+
   async update(packageName: string): Promise<OperationResult> {
     const { stdout, stderr, exitCode } = await runCommand(
       "pnpm",
@@ -129,6 +137,10 @@ class PnpmPackageManager extends PackageManager {
 
   installCommand(packageName: string): string {
     return `pnpm add -g ${packageName}`;
+  }
+
+  installVersionCommand(packageName: string, version: string): string {
+    return `pnpm add -g ${packageName}@${version}`;
   }
 
   updateCommand(packageNames: string[]): string {

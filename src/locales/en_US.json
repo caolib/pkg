@@ -54,7 +54,7 @@
   "button.cancel": "Cancel",
   "button.update": "Update",
   "button.delete": "Delete",
-  "button.close": "Close [Esc]",
+  "button.close": "Close",
   "detail.loading": "Loading...",
   "detail.load_failed": "Failed to load details: {exc}",
   "detail.version": "Version",
@@ -142,5 +142,13 @@
   "settings.auto_check_updates": "Auto Check Updates",
   "settings.auto_check_hint": "(on home open)",
   "settings.on": "On",
-  "settings.off": "Off"
+  "settings.off": "Off",
+  "button.install_version": "Install Version",
+  "confirm.install_version": "Install [bold cyan]{name}[/] version [bold cyan]{version}[/]?\n\nWill run:",
+  "version.title": "Select Version",
+  "version.filter_placeholder": "Filter versions...",
+  "version.current": "(current)",
+  "version.no_match": "No matching versions",
+  "version.page": "Page {page}/{total}",
+  "version.hint": "↑↓ select  ←→ page  Enter confirm  Esc cancel"
 }

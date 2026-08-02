@@ -34,6 +34,14 @@ export abstract class PackageManager {
   abstract view(packageName: string): Promise<PackageDetail>;
   /** 全局安装指定包。 */
   abstract install(packageName: string): Promise<OperationResult>;
+  /** 全局安装指定包的特定版本。默认实现回退到 install(最新版)。 */
+  async installVersion(packageName: string, version: string): Promise<OperationResult> {
+    return this.install(packageName);
+  }
+  /** 安装指定版本将执行的命令行(进度通知展示用)。 */
+  installVersionCommand(packageName: string, version: string): string {
+    return this.installCommand(packageName);
+  }
   /** 更新指定的全局包到最新版本。 */
   abstract update(packageName: string): Promise<OperationResult>;
   /** 卸载指定的全局包。 */

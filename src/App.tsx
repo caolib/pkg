@@ -530,6 +530,46 @@ export function App() {
     });
   }
 
+  /** 详情屏的安装特定版本:关闭详情后走确认。 */
+  function detailInstallVersion(managerName: string, name: string, version: string) {
+    setOverlay(null);
+    const st = reg.states.get(managerName);
+    const cmd = st
+      ? st.instance.installVersionCommand(name, version)
+      : `${managerName} install ${name}@${version}`;
+    setOverlay({
+      kind: "confirm",
+      message: t("confirm.install_version", { name, version }),
+      commands: [cmd],
+      onConfirm: () => {
+        setOverlay(null);
+        runInstallVersion(managerName, name, version);
+      },
+      onCancel: () => setOverlay(null),
+    });
+  }
+
+  /** 执行安装特定版本。 */
+  async function runInstallVersion(managerName: string, name: string, version: string) {
+    const st = reg.states.get(managerName);
+    if (!st) {
+      showToast(t("notify.unknown_manager", { name: managerName }), "error");
+      return;
+    }
+    const spec = `${name}@${version}`;
+    showToast(st.instance.installVersionCommand(name, version), "info", PROGRESS_TIMEOUT_MS);
+    try {
+      const res = await st.instance.installVersion(name, version);
+      setToast(null);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (res.success) showToast(t("notify.installed", { name: spec }), "info");
+      else showToast(t("notify.install_failed", { message: res.message ?? "" }), "error", 8000);
+    } catch (exc) {
+      showToast(t("notify.install_error", { exc: String(exc) }), "error", 8000);
+    }
+    reloadManagers([managerName]);
+  }
+
   // ------------------------------------------------------------------
   // 键盘分发（主界面）
   // ------------------------------------------------------------------
@@ -891,6 +931,10 @@ export function App() {
           onClose={() => setOverlay(null)}
           onUpdate={(mn, n) => detailUpdate(mn, n)}
           onUninstall={(mn, n) => detailUninstall(mn, n)}
+          onInstallVersion={(version) => {
+            // managerName 为 null(搜索打开)时取 manager.name
+            detailInstallVersion(overlay.managerName ?? overlay.manager.name, overlay.name, version);
+          }}
           onToast={(m, sev) => showToast(m, sev)}
         />
       ) : null}
