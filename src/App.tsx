@@ -422,6 +422,14 @@ export function App() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     if (summary.fail === 0) {
       showToast(t("notify.updated_ok", { count: String(summary.ok) }), "info");
+    } else if (summary.ok + summary.fail === 1) {
+      showToast(t("notify.updated_failed"), "error", 8000);
+    } else if (summary.ok === 0) {
+      showToast(
+        t("notify.updated_partial", { ok: "0", fail: String(summary.fail) }),
+        "error",
+        8000,
+      );
     } else {
       showToast(
         t("notify.updated_partial", { ok: String(summary.ok), fail: String(summary.fail) }),
@@ -440,6 +448,14 @@ export function App() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     if (summary.fail === 0) {
       showToast(t("notify.uninstalled_ok", { count: String(summary.ok) }), "info");
+    } else if (summary.ok + summary.fail === 1) {
+      showToast(t("notify.uninstalled_failed"), "error", 8000);
+    } else if (summary.ok === 0) {
+      showToast(
+        t("notify.uninstalled_partial", { ok: "0", fail: String(summary.fail) }),
+        "error",
+        8000,
+      );
     } else {
       showToast(
         t("notify.uninstalled_partial", { ok: String(summary.ok), fail: String(summary.fail) }),
