@@ -17,9 +17,9 @@
 **方式一：通过 Bun/npm（有 Bun 时推荐，包仅 56KB）**
 
 ```bash
-bun i -g pkg-tui && pkg-tui      # 或 npm i -g pkg-tui
+bun i -g @caolib/pkg-tui && pkg-tui      # 或 npm i -g @caolib/pkg-tui
 # 不想安装直接跑：
-bunx pkg-tui
+bunx @caolib/pkg-tui
 ```
 
 需要已安装 [Bun](https://bun.sh)。
