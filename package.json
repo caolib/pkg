@@ -1,6 +1,6 @@
 {
   "name": "@caolib/pkg-tui",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Terminal TUI to manage all package managers (npm/pnpm/bun/winget/scoop/cargo/choco/uv) in one place",
   "license": "MIT",
   "repository": "github:caolib/pkg",
