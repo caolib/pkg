@@ -125,6 +125,7 @@
   "cmd.maximize": "Maximize focused",
   "cmd.screenshot": "Save screenshot as SVG",
   "error.not_found": "Executable not found in PATH: {exe}",
+  "error.timeout": "Command timed out and was terminated: {exe}",
   "error.no_name": "{cls} must define a non-empty name class attribute",
   "error.view_failed": "{cmd} {package} failed",
   "error.view_not_object": "{cmd} {package} returned non-object data",

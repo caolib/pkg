@@ -18,6 +18,9 @@ export interface Config {
   language?: string;
   manager_icons?: Record<string, string>;
   manager_names?: Record<string, string>;
+  /** 用户手动切换过启用/禁用的管理器（true=禁用，false=启用）；
+   *  未列出的管理器以自动检测结果为准。 */
+  user_manager_choices?: Record<string, boolean>;
 }
 
 /** 主应用可自定义的快捷键定义：[action, 默认按键, 说明_i18n_key, 是否显示在底栏] */
@@ -154,5 +157,14 @@ export function getManagerNames(config: Config): Record<string, string> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw)) out[k] = String(v);
+  return out;
+}
+
+/** 从配置中提取用户手动启用/禁用选择 {name: 是否禁用}。 */
+export function getUserManagerChoices(config: Config): Record<string, boolean> {
+  const raw = config.user_manager_choices;
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(raw)) out[k] = Boolean(v);
   return out;
 }

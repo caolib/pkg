@@ -144,25 +144,31 @@ class CargoPackageManager extends PackageManager {
     return packages;
   }
 
-  /** cargo 无内置 outdated 命令，逐个 cargo info 对比最新版本。 */
+  /** cargo 无内置 outdated 命令，并行逐个 cargo info 对比最新版本
+   *  （每包一个子进程，串行会随包数线性拖慢；runCommand 内置超时兜底）。 */
   async listOutdated(): Promise<PackageInfo[]> {
     const installed = await this.listInstalled();
     if (installed.length === 0) return [];
-    const outdated: PackageInfo[] = [];
-    for (const pkg of installed) {
-      try {
-        const detail = await this.view(pkg.name);
-        const latest = detail.latest_version;
-        if (latest && latest !== pkg.version) {
-          outdated.push({
-            name: pkg.name,
-            version: pkg.version,
-            latest_version: latest,
-            manager: this.name,
-          });
+    const results = await Promise.all(
+      installed.map(async (pkg) => {
+        try {
+          const detail = await this.view(pkg.name);
+          const latest = detail.latest_version;
+          return latest && latest !== pkg.version ? { pkg, latest } : null;
+        } catch {
+          return null;
         }
-      } catch {
-        continue;
+      }),
+    );
+    const outdated: PackageInfo[] = [];
+    for (const r of results) {
+      if (r) {
+        outdated.push({
+          name: r.pkg.name,
+          version: r.pkg.version,
+          latest_version: r.latest,
+          manager: this.name,
+        });
       }
     }
     outdated.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));

@@ -119,6 +119,7 @@
   "cmd.maximize": "最大化当前焦点控件",
   "cmd.screenshot": "将当前屏幕保存为 SVG 截图",
   "error.not_found": "未在系统 PATH 中找到可执行文件: {exe}",
+  "error.timeout": "命令超时已被终止: {exe}",
   "error.no_name": "{cls} 必须定义非空的 name 类属性",
   "error.view_failed": "{cmd} {package} 失败",
   "error.view_not_object": "{cmd} {package} 返回了非对象数据",

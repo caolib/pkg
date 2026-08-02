@@ -14,6 +14,7 @@ import { t } from "../i18n";
 import type { OperationResult, PackageDetail, PackageInfo, SearchResult } from "./types";
 import { isAvailableAsync, ManagerError, parseJson, runCommand } from "./_cli";
 import { PackageManager, registerManager } from "./base";
+import { _makeResult } from "./npm";
 
 // ---------------------------------------------------------------------------
 // 表格解析辅助（scoop 的 ASCII 列表头）
@@ -299,21 +300,3 @@ class ScoopPackageManager extends PackageManager {
 }
 
 registerManager(ScoopPackageManager);
-
-/** scoop 本地结果构造。 */
-function _makeResult(
-  stdout: string,
-  stderr: string,
-  exitCode: number,
-  pkg: string,
-  operation: "install" | "update" | "uninstall",
-): OperationResult {
-  let message = stdout.trim() || stderr.trim();
-  const success = exitCode === 0;
-  if (success) {
-    message = message || t(`result.${operation}_ok`, { package: pkg });
-  } else if (!message) {
-    message = t(`result.${operation}_failed`, { package: pkg });
-  }
-  return { success, message, package: pkg };
-}

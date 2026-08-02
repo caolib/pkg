@@ -93,9 +93,17 @@ test(
       );
       await press("d");
       check(actionFired(), "退出过滤后 d 恢复为卸载快捷键");
-      // d 无选中包时弹的是 toast（非确认框），Esc 关不掉，等它自动消失，
-      // 否则残留 toast 会让用例 3 的 actionFired 误判为"打字触发快捷键"。
-      await waitForToastGone("没有选中的包");
+      // 本机表格有真实包时 d 弹的是卸载确认框（overlay，Esc 可关）；
+      // 无包时是 "没有选中的包" toast（Esc 关不掉，等它自动消失，否则
+      // 残留 toast 会让用例 3 的 actionFired 误判为"打字触发快捷键"）。
+      if (
+        setup.captureCharFrame().includes("确定要卸载") ||
+        setup.captureCharFrame().includes("确定要更新")
+      ) {
+        await pressEscape();
+      } else {
+        await waitForToastGone("没有选中的包");
+      }
 
       // --- 3. 键盘 / 进入过滤模式后打字 ---
       await press("/");
@@ -105,17 +113,20 @@ test(
 
       // --- 4. 全局搜索界面：← → 循环导航 + 输入框打字 ---
       await press("s");
+      // 搜索界面占位符 "在 {names} 中搜索..." 可能被渲染层吞掉尾部字符
+      // （本机 OpenTUI 原生缓冲的已知现象），检测不能只依赖 "中搜索"；
+      // 搜索打开时渲染器焦点在搜索输入框（isInput），主界面过滤框此时必未聚焦。
+      const isInput = () =>
+        setup.renderer.currentFocusedRenderable?.constructor?.name === "InputRenderable";
+      const f4 = setup.captureCharFrame();
       const inSearch =
-        setup.captureCharFrame().includes("中搜索") ||
-        setup.captureCharFrame().includes("Search in");
+        (f4.includes("中搜索") || f4.includes("Search in") || f4.includes("在 ")) && isInput();
       if (!inSearch) {
         console.log("  · 本机无可用包管理器，跳过搜索界面用例");
       } else {
-        // 4a. ← → 循环导航：搜索框 ⇄ 范围条。范围条 = "全部" + 各管理器（最多 6 个
-        // 按钮）；曾 bug：→ 只在按钮间循环、← 停在输入框，均无法绕一圈回来。
+        // 4a. ← → 循环导航：搜索框 ⇄ 范围条。范围条 = "全部" + 各可用管理器按钮；
+        // 曾 bug：→ 只在按钮间循环、← 停在输入框，均无法绕一圈回来。
         // 先测导航再打字：此时查询为空，切换范围不会触发重搜（避免子进程开销）。
-        const isInput = () =>
-          setup.renderer.currentFocusedRenderable?.constructor?.name === "InputRenderable";
         check(isInput(), "搜索界面初始焦点在输入框");
         // 输入框 ← 循环到最右按钮
         await pressArrow("left");
@@ -139,7 +150,7 @@ test(
         await pressArrow("left");
         check(!isInput(), "输入框 ← 再次进入范围条");
         back = false;
-        for (let i = 0; i < 7 && !back; i++) {
+        for (let i = 0; i < 12 && !back; i++) {
           await pressArrow("left");
           back = isInput();
         }
@@ -156,8 +167,6 @@ test(
       // 曾 bug：← → 切到过滤框只高亮背景、无光标（OpenTUI 光标只在聚焦的
       // renderable 上绘制）。修复：过滤框聚焦时连带 focus input；依赖全局
       // keyHandler 先于聚焦 input 处理按键，导航键 preventDefault 不被吞。
-      const isInput = () =>
-        setup.renderer.currentFocusedRenderable?.constructor?.name === "InputRenderable";
 
       // 5a. 表格首行 ↑ 进入顶栏模式
       await pressArrow("up");
@@ -192,7 +201,15 @@ test(
       check(!isInput(), "过滤框 Esc 退出（blur 交还表格）");
       await press("d");
       check(actionFired(), "Esc 退出后 d 恢复为卸载快捷键");
-      await waitForToastGone("没有选中的包");
+      // 同用例 2：本机表格有真实包时弹确认框（Esc 关），无包时弹 toast（等消失）
+      if (
+        setup.captureCharFrame().includes("确定要卸载") ||
+        setup.captureCharFrame().includes("确定要更新")
+      ) {
+        await pressEscape();
+      } else {
+        await waitForToastGone("没有选中的包");
+      }
 
       // 5f. 再次 ← 到过滤框，Enter 同样退出并 blur
       await pressArrow("up");

@@ -109,6 +109,27 @@ test("OpLog: 订阅通知", () => {
   check(after === count, "退订后不再通知");
 });
 
+test("OpLog: 满行数 + 超长行切段不丢保留行", () => {
+  const log = new OpLog();
+  const e = log.begin("x");
+  for (let i = 0; i < 3000; i++) log.appendText(e, "out", `line ${i}\n`);
+  check(linesOf(log, e.id).length === 3000, "先填满 3000 行");
+  // 一条 10000 字符的超长行 → 3 段（4096+4096+1808）。截断应只丢被
+  // splice 掉的最旧行，不得再把保留的真实行覆盖成 TRUNCATED_MARK。
+  log.appendText(e, "out", `${"A".repeat(10000)}\n`);
+  log.finish(e, 0);
+  const lines = linesOf(log, e.id);
+  check(lines.length === 3000, `满后仍封顶 3000（实际 ${lines.length}）`);
+  check(lines[0].startsWith("…"), `截断标记在首行（${lines[0].slice(0, 20)}…）`);
+  check(lines[1] === "line 4", `标记只替换 splice 掉的行（首条保留行 ${lines[1]}）`);
+  check(lines.includes("line 2999"), "截断前最近的真实行仍在");
+  check(
+    lines.filter((l) => l === "A".repeat(4096)).length === 2 &&
+      lines.filter((l) => l === "A".repeat(10000 - 8192)).length === 1,
+    "长行切成 3 段完整写入",
+  );
+});
+
 test("OpLog: clear() 清空", () => {
   const log = new OpLog();
   log.begin("x");

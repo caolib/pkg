@@ -23,6 +23,7 @@ import {
   getLanguage,
   getManagerIcons,
   getManagerNames,
+  getUserManagerChoices,
   loadConfig,
   saveConfig,
   configExists,
@@ -43,6 +44,9 @@ export interface ManagerState {
   checked: boolean;
   /** 用户手动禁用；禁用的管理器在主界面隐藏且不加载 */
   disabled: boolean;
+  /** 用户手动切换过启用/禁用（true=禁用，false=启用；undefined=未手动操作，
+   *  自动检测结果为准）。设置界面勾选过的管理器，checkAll/checkOne 不得覆盖。 */
+  userDisabled?: boolean;
   installed: PackageInfo[];
   outdated: PackageInfo[];
   /** outdated 按包名索引，方便快速查找最新版本 */
@@ -106,9 +110,14 @@ export class ManagerRegistry {
     this.searchKeybindings = getSearchKeybindings(this.config);
     this.managerIcons = getManagerIcons(this.config);
     this.managerNames = getManagerNames(this.config);
+    const userChoices = getUserManagerChoices(this.config);
     for (const name of this.disabledManagers) {
       const st = this.states.get(name);
       if (st) st.disabled = true;
+    }
+    for (const [name, choice] of Object.entries(userChoices)) {
+      const st = this.states.get(name);
+      if (st) st.userDisabled = choice;
     }
     return getLanguage(this.config);
   }
@@ -249,6 +258,11 @@ export class ManagerRegistry {
       language: this.config.language || "",
       manager_icons: { ...this.defaultManagerIcons(), ...this.managerIcons },
       manager_names: { ...this.defaultManagerNames(), ...this.managerNames },
+      user_manager_choices: Object.fromEntries(
+        [...this.states.entries()]
+          .filter(([, st]) => st.userDisabled !== undefined)
+          .map(([name, st]) => [name, st.userDisabled as boolean]),
+      ),
     };
     try {
       await saveConfig(this.config);

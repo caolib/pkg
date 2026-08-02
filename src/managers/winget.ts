@@ -16,6 +16,7 @@ import { dispWidthChar, sliceByDisp } from "../width";
 import type { OperationResult, PackageDetail, PackageInfo, SearchResult } from "./types";
 import { isAvailableAsync, ManagerError, runCommand } from "./_cli";
 import { PackageManager, registerManager } from "./base";
+import { _makeResult } from "./npm";
 
 // 安装/升级/卸载时统一附加的免交互参数
 const _ACCEPT_ARGS = [
@@ -437,22 +438,4 @@ function partition(s: string, sep: string): [string, string, string] {
   const idx = s.indexOf(sep);
   if (idx < 0) return [s, "", ""];
   return [s.slice(0, idx), sep, s.slice(idx + sep.length)];
-}
-
-/** winget 本地操作结果构造（stdout/stderr 文本，rc，包名，操作类型）。 */
-function _makeResult(
-  stdout: string,
-  stderr: string,
-  exitCode: number,
-  pkg: string,
-  operation: "install" | "update" | "uninstall",
-): OperationResult {
-  let message = stdout.trim() || stderr.trim();
-  const success = exitCode === 0;
-  if (success) {
-    message = message || t(`result.${operation}_ok`, { package: pkg });
-  } else if (!message) {
-    message = t(`result.${operation}_failed`, { package: pkg });
-  }
-  return { success, message, package: pkg };
 }

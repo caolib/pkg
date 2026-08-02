@@ -7,7 +7,7 @@
 
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { InputRenderable } from "@opentui/core";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isTextInputFocused } from "./focus";
 import { getTerminalBackground } from "./terminal-colors";
 import { dispWidthChar, dispWidthStr } from "./width";
@@ -42,7 +42,7 @@ import { OutputScreen } from "./screens/OutputScreen";
 // ---------------------------------------------------------------------------
 
 type Overlay =
-  | { kind: "search" }
+  | { kind: "search"; managers: PackageManager[] }
   | { kind: "settings" }
   | { kind: "output" }
   | {
@@ -107,7 +107,10 @@ export function App() {
   const [loadingHint, setLoadingHint] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [toastTimer, setToastTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  // toast 计时器用 ref 而非 state：同轮异步内连续 showToast 时，state 闭包
+  // 读到的是旧值，第二个 clearTimeout 清不掉第一个 timer，旧 timer 会提前
+  // 冲掉新的 toast（见 showToast）。
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 顶栏过滤输入框实例：退出过滤模式时需显式 blur（鼠标点击聚焦的情况下
   // focused prop 本就是 false，React 不会 diff 出变化，只能手动 blur）
@@ -143,6 +146,11 @@ export function App() {
       .map((s) => s.instance);
   }
 
+  // 稳定回调：reg 是 ref 单例，闭包内实时读取其状态，useCallback 安全，
+  // 且让 SearchScreen 的 useMemo（deps 含这两个回调）在 overlay 打开期间真正生效
+  const managerIconCb = useCallback((name: string) => reg.managerIcon(name), []);
+  const managerNameCb = useCallback((name: string) => reg.managerDisplayName(name), []);
+
   // ------------------------------------------------------------------
   // 初始化
   // ------------------------------------------------------------------
@@ -161,28 +169,30 @@ export function App() {
       await loadCurrentView();
     })();
     return () => {
-      if (toastTimer) clearTimeout(toastTimer);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function showToast(message: string, severity: Toast["severity"] = "info", timeout = 4000) {
-    if (toastTimer) clearTimeout(toastTimer);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     const id = Math.floor(performance.now() * 1000);
     setToast({ id, message, severity });
     const tm = setTimeout(() => {
       setToast(null);
-      setToastTimer(null);
+      toastTimerRef.current = null;
     }, timeout);
-    setToastTimer(tm);
+    toastTimerRef.current = tm;
   }
 
   // ------------------------------------------------------------------
   // 数据加载
   // ------------------------------------------------------------------
-  async function loadCurrentView() {
+  /** 加载当前视图数据。name 显式传参：switchManager 等调用方在 setState
+   *  之后闭包里的 current 仍是旧值，直接读闭包会加载错视图（见 switchManager）。 */
+  async function loadCurrentView(name?: string) {
     rerender();
-    const managers = reg.activeManagers(current);
+    const managers = reg.activeManagers(name ?? current);
     // 先清未加载管理器的 installed
     for (const st of managers) {
       if (!st.loadedInstalled) st.installed = [];
@@ -305,7 +315,7 @@ export function App() {
     setFilterText("");
     setCursor(0);
     exitFilterMode(); // 切换管理器后回到表格模式
-    loadCurrentView();
+    loadCurrentView(name);
   }
 
   // ------------------------------------------------------------------
@@ -409,7 +419,7 @@ export function App() {
     showToast(joinCommands(previewCommands(reg, groups, "update")), "info", PROGRESS_TIMEOUT_MS);
     const summary = await doUpdateAll(reg, groups);
     setToast(null);
-    if (toastTimer) clearTimeout(toastTimer);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     if (summary.fail === 0) {
       showToast(t("notify.updated_ok", { count: String(summary.ok) }), "info");
     } else {
@@ -427,7 +437,7 @@ export function App() {
     showToast(joinCommands(previewCommands(reg, groups, "uninstall")), "info", PROGRESS_TIMEOUT_MS);
     const summary = await doUninstallAll(reg, groups);
     setToast(null);
-    if (toastTimer) clearTimeout(toastTimer);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     if (summary.fail === 0) {
       showToast(t("notify.uninstalled_ok", { count: String(summary.ok) }), "info");
     } else {
@@ -453,7 +463,7 @@ export function App() {
       try {
         const res = await st.instance.install(name);
         setToast(null);
-        if (toastTimer) clearTimeout(toastTimer);
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
         if (res.success) showToast(t("notify.installed", { name }), "info");
         else showToast(t("notify.install_failed", { message: res.message ?? "" }), "error", 8000);
       } catch (exc) {
@@ -644,12 +654,15 @@ export function App() {
   }
 
   function openSearch() {
-    if (getAvailableManagers().length === 0) {
+    const managers = getAvailableManagers();
+    if (managers.length === 0) {
       showToast(t("notify.no_managers"), "warn");
       return;
     }
     exitFilterMode(); // 交出焦点，避免 overlay 打开后底层过滤框仍在吃按键
-    setOverlay({ kind: "search" });
+    // managers 冻结进 overlay state：身份跨渲染稳定，SearchScreen 的
+    // useMemo（deps [managers, ...]）才能真的缓存
+    setOverlay({ kind: "search", managers });
   }
 
   function openSettings() {
@@ -670,28 +683,26 @@ export function App() {
     const langChanged = result.language && result.language !== currentLanguage();
     if (langChanged) setLanguage(result.language);
 
-    // --- 当前选中管理器若被禁用，回退到"全部" ---
-    if (current !== ALL_MANAGERS) {
-      const st = reg.states.get(current);
-      if (st && st.disabled) switchManager(ALL_MANAGERS);
-    }
+    // --- 当前选中管理器若被禁用，回退到"全部"（先于任何 state 变更判定）---
+    const currentDisabled =
+      current !== ALL_MANAGERS && (reg.states.get(current)?.disabled ?? false);
 
-    // --- 持久化 ---
-    reg.config = {
-      disabled_managers: [...reg.disabledManagers].sort(),
-      keybindings: reg.keybindings,
-      search_keybindings: reg.searchKeybindings,
-      language: currentLanguage(),
-      manager_icons: reg.managerIcons,
-    };
+    // --- 持久化：persist() 会自己从磁盘+内部状态重建配置，这里只需更新语言 ---
+    reg.config.language = currentLanguage();
     reg.persist();
 
     if (langChanged) {
       showToast(t("notify.restart_for_footer"), "info", 8000);
     }
-    // 刷新顶栏按钮（可用性/禁用态可能变了）并重载数据
-    rerender();
-    reloadAll();
+    // 刷新顶栏按钮（可用性/禁用态可能变了）并重载数据。
+    // current 未变才能安全 reloadAll（闭包 current 仍有效）；变了的走
+    // switchManager（内部已用新名字 loadCurrentView，避免旧闭包加载旧视图）
+    if (currentDisabled) {
+      switchManager(ALL_MANAGERS);
+    } else {
+      rerender();
+      reloadAll();
+    }
   }
 
   function activateStrip(index: number) {
@@ -818,9 +829,9 @@ export function App() {
       ) : null}
       {overlay?.kind === "search" ? (
         <SearchScreen
-          managers={getAvailableManagers()}
-          managerIcon={(name) => reg.managerIcon(name)}
-          managerName={(name) => reg.managerDisplayName(name)}
+          managers={overlay.managers}
+          managerIcon={managerIconCb}
+          managerName={managerNameCb}
           onClose={() => setOverlay(null)}
           onView={(mgr, name, title) =>
             setOverlay({
@@ -888,7 +899,9 @@ function matchBinding(
     return key.name === ",";
   }
   if (last === "space") return key.name === "space";
-  return key.name === last;
+  // 大小写不敏感：kitty 键盘协议下 shift+r 的 name 是 "R"（legacy 终端
+  // 则归一为小写），绑定串已 toLowerCase，这里需同样归一才能匹配
+  return key.name.toLowerCase() === last;
 }
 
 /** 底栏快捷键提示文本。filterMode=true 时显示过滤模式提示。 */

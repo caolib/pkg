@@ -154,14 +154,21 @@ export class OpLog {
     const segs = raw.split("\r");
     let line = segs[segs.length - 1];
     if (line === "" && segs.length > 1) line = segs[segs.length - 2];
-    const clean = cleanLine(line);
+    let clean = cleanLine(line);
     if (!clean) return;
+    // 单行总长封顶到容量上限，保证 nChunks ≤ MAX_LINES（keep 恒非负）
+    if (clean.length > MAX_LINE_CHARS * MAX_LINES)
+      clean = clean.slice(0, MAX_LINE_CHARS * MAX_LINES);
     const lines = entry.lines;
+    const nChunks = Math.ceil(clean.length / MAX_LINE_CHARS);
+    // 满时一次腾出全部空间（TRUNCATED_MARK + 各段），再逐段写入——
+    // 逐段截断会在每次 splice 后把保留的最旧真实行覆盖成标记，每段多丢一行
+    if (lines.length + nChunks > MAX_LINES) {
+      const keep = Math.max(0, MAX_LINES - nChunks);
+      lines.splice(0, lines.length - keep);
+      if (keep > 0) lines[0] = { stream: "info", text: TRUNCATED_MARK };
+    }
     for (let i = 0; i < clean.length; i += MAX_LINE_CHARS) {
-      if (lines.length >= MAX_LINES) {
-        lines.splice(0, lines.length - MAX_LINES + 1);
-        lines[0] = { stream: "info", text: TRUNCATED_MARK };
-      }
       lines.push({ stream, text: clean.slice(i, i + MAX_LINE_CHARS) });
     }
   }

@@ -169,6 +169,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
     const st = reg.states.get(name);
     if (!st) return;
     st.disabled = !st.disabled;
+    // 记录用户显式选择：此后 checkAll/checkOne 不得用自动检测结果覆盖
+    st.userDisabled = st.disabled;
     if (st.disabled) reg.disabledManagers.add(name);
     else reg.disabledManagers.delete(name);
     rerender();
@@ -211,11 +213,13 @@ export function SettingsScreen(props: SettingsScreenProps) {
     }
   }
 
-  /** 检测完成后：未安装的管理器自动禁用。 */
+  /** 检测完成后：未安装的管理器自动禁用。
+   *  用户手动切换过启用/禁用的管理器不覆盖（userDisabled 记录其选择）。 */
   function autoDisableMissing(name: string) {
     const st = reg.states.get(name);
     if (!st || !st.checked) return;
     if (!st.available) {
+      if (st.userDisabled === false) return;
       st.disabled = true;
       reg.disabledManagers.add(name);
     }

@@ -26,7 +26,14 @@ export interface RunResult {
 export interface RunOptions {
   /** 将命令执行过程记录到操作日志（"命令输出"界面实时查看用） */
   log?: boolean;
+  /** 超时毫秒（0=不超时）。默认 10 分钟：防止卡死的子进程永久挂起
+   *  （如旧版 winget 不支持 --disable-interactivity 时停在交互提示）。
+   *  超时 kill 子进程并抛 ManagerError。 */
+  timeoutMs?: number;
 }
+
+/** 默认超时：10 分钟（大包安装/下载也足够，卡死进程早该被杀）。 */
+const DEFAULT_TIMEOUT_MS = 600_000;
 
 /** 可执行文件的解析结果：直调 或 经 cmd /c 回退。 */
 interface Resolved {
@@ -85,6 +92,23 @@ export async function runCommand(
     stderr: "pipe",
   });
 
+  // 超时兜底：卡死的子进程（如等交互输入的旧版 winget）不再永久挂起。
+  // Windows 上经 cmd /c 包装的子进程 kill 只杀 cmd，实际 exe 可能残留——
+  // 尽力而为，比永久挂起可感知得多。
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  let timedOut = false;
+  const timer =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          try {
+            proc.kill();
+          } catch {
+            // ignore
+          }
+        }, timeoutMs)
+      : null;
+
   let exitCode: number;
   let stdout = "";
   let stderr = "";
@@ -126,6 +150,14 @@ export async function runCommand(
     }
     if (entry) opLog.fail(entry, err instanceof Error ? err.message : String(err));
     throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+
+  if (timedOut) {
+    const msg = t("error.timeout", { exe: executable });
+    if (entry) opLog.fail(entry, msg);
+    throw new ManagerError(msg);
   }
 
   if (entry) opLog.finish(entry, exitCode);
