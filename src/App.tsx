@@ -993,6 +993,7 @@ function renderBindingHints(kb: Record<string, string>, filterMode: boolean): st
     seg(t("binding.search"), kb.open_search ?? "s"),
     seg(t("binding.output"), kb.view_output ?? "o"),
     seg(t("binding.refresh"), kb.refresh_all ?? "r"),
+    seg(t("binding.check_updates"), kb.check_updates ?? "c"),
     seg(t("binding.update"), kb.update_selected ?? "u"),
     seg(t("binding.uninstall"), kb.uninstall_selected ?? "d"),
     seg(t("binding.toggle"), kb.toggle_select ?? "space"),
