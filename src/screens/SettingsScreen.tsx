@@ -1,16 +1,17 @@
 /**
  * 设置界面。
  *
- * 对应原 Python 项目 screens/settings_screen.py：
- *   - 包管理器管理：每行显示名称、检测状态、启用开关；可单个/全部检查可用性
- *   - 语言切换（简体中文 / English）
- *   - 配置文件路径显示 + 打开所在目录
- *   - Esc / "完成" 关闭，回传变更（disabled_managers、language）
+ * 对应原 Python 项目 screens/settings_screen.py:
+ *   - 包管理器管理:每行显示名称、检测状态、启用开关
+ *   - 语言切换(简体中文 / English)
+ *   - 打开首页自动检查更新开关
+ *   - 配置文件路径显示
+ *   - Esc 关闭,回传变更(disabled_managers、language)
  *
- * 简化：用自建受控列表（box+text），键盘 ↑↓ 移光标、Enter/Space 切换启用、
- * c 检查单个、a 全部检查、l 切语言、o 打开目录、Esc/Enter 在"完成"行关闭。
- * 鼠标：单击行 = 选中并激活（与 ConfirmDialog 按钮一致），悬浮行高亮；
- * 行区溢出时滚轮上下移动光标（光标驱动的滚动窗口，同 PackageTable，无滚动条）。
+ * 简化:用自建受控列表(box+text),键盘 ↑↓ 移光标、Enter/Space 切换启用、
+ * a 全部检查、Esc 关闭。
+ * 鼠标:单击行 = 选中并激活(与 ConfirmDialog 按钮一致),悬浮行高亮;
+ * 行区溢出时滚轮上下移动光标(光标驱动的滚动窗口,同 PackageTable,无滚动条)。
  */
 
 import { MouseButton, TextAttributes, type MouseEvent } from "@opentui/core";
@@ -23,9 +24,9 @@ import { t, setLanguage, currentLanguage } from "../i18n";
 import type { ManagerRegistry } from "../runtime";
 import pkg from "../../package.json";
 
-/** 滚轮每档移动的行数（与 PackageTable 的 VSCROLL_STEP 一致） */
+/** 滚轮每档移动的行数(与 PackageTable 的 VSCROLL_STEP 一致) */
 const VSCROLL_STEP = 3;
-/** 行区固定开销：内边距2 + 标题1 + 行区上边距1 + 配置路径3 + 底栏2 = 9 */
+/** 行区固定开销:内边距2 + 标题1 + 行区上边距1 + 配置路径3 + 底栏2 = 9 */
 const ROWS_OVERHEAD = 9;
 
 export interface SettingsResult {
@@ -40,13 +41,7 @@ export interface SettingsScreenProps {
 }
 
 /** 一行设置项。 */
-type Row =
-  | { kind: "mgr"; name: string }
-  | { kind: "lang" }
-  | { kind: "autocheck" }
-  | { kind: "checkall" }
-  | { kind: "opendir" }
-  | { kind: "done" };
+type Row = { kind: "mgr"; name: string } | { kind: "lang" } | { kind: "autocheck" };
 
 function statusLabel(reg: ManagerRegistry, name: string): string {
   const st = reg.states.get(name);
@@ -68,31 +63,28 @@ function toggleLabel(reg: ManagerRegistry, name: string): string {
 }
 
 export function SettingsScreen(props: SettingsScreenProps) {
-  const { reg, onClose, onToast } = props;
+  const { reg, onClose } = props;
   const renderer = useRenderer();
   const { height } = useTerminalDimensions();
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
   const [cursor, setCursor] = useState(0);
   const [lang, setLang] = useState(currentLanguage());
-  /** 鼠标悬浮的行索引（-1=无） */
+  /** 鼠标悬浮的行索引(-1=无) */
   const [hover, setHover] = useState(-1);
-  /** 光标驱动的滚动窗口起点（同 PackageTable：行溢出时滚轮/键盘让光标行可见） */
+  /** 光标驱动的滚动窗口起点(同 PackageTable:行溢出时滚轮/键盘让光标行可见) */
   const windowStartRef = useRef(0);
 
-  // 行序列：各管理器 + 语言 + 全部检查 + 打开目录 + 完成
+  // 行序列:各管理器 + 语言 + 自动检查更新
   const rows: Row[] = [
     ...reg.names.map((n): Row => ({ kind: "mgr", name: n })),
     { kind: "lang" },
     { kind: "autocheck" },
-    { kind: "checkall" },
-    { kind: "opendir" },
-    { kind: "done" },
   ];
 
-  // 行区可见高度：模态框 maxHeight=85%，行区盒子给显式 height（显式高度
-  // 不受 Yoga 收缩影响），扣除固定开销 ROWS_OVERHEAD 后恰好放满。
-  // 行数不足时盒子收缩到实际行数，避免出现空白行。
+  // 行区可见高度:模态框 maxHeight=85%,行区盒子给显式 height(显式高度
+  // 不受 Yoga 收缩影响),扣除固定开销 ROWS_OVERHEAD 后恰好放满。
+  // 行数不足时盒子收缩到实际行数,避免出现空白行。
   const listRows = Math.min(rows.length, Math.max(2, Math.floor(height * 0.85) - ROWS_OVERHEAD));
   const maxStart = Math.max(0, rows.length - listRows);
   let windowStart = Math.min(windowStartRef.current, maxStart);
@@ -125,7 +117,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
       key.preventDefault();
       return;
     }
-    // 若还有文本输入持有焦点，a/c/l/o 等字符键归它，不在这里当快捷键
+    // 若还有文本输入持有焦点,字符键归它,不在这里当快捷键
     if (isTextInputFocused(renderer)) return;
     if (key.name === "up") {
       setCursor((c) => (c - 1 + rows.length) % rows.length);
@@ -147,15 +139,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
     if (key.name === "a") {
       checkAll();
       key.preventDefault();
-    } else if (key.name === "c") {
-      if (row.kind === "mgr") checkOne(row.name);
-      key.preventDefault();
-    } else if (key.name === "l") {
-      toggleLanguage();
-      key.preventDefault();
-    } else if (key.name === "o") {
-      openDir();
-      key.preventDefault();
     }
   });
 
@@ -163,16 +146,13 @@ export function SettingsScreen(props: SettingsScreenProps) {
     if (row.kind === "mgr") toggleManager(row.name);
     else if (row.kind === "lang") toggleLanguage();
     else if (row.kind === "autocheck") toggleAutoCheck();
-    else if (row.kind === "checkall") checkAll();
-    else if (row.kind === "opendir") openDir();
-    else if (row.kind === "done") finish();
   }
 
   function toggleManager(name: string) {
     const st = reg.states.get(name);
     if (!st) return;
     st.disabled = !st.disabled;
-    // 记录用户显式选择：此后 checkAll/checkOne 不得用自动检测结果覆盖
+    // 记录用户显式选择:此后 checkAll 不得用自动检测结果覆盖
     st.userDisabled = st.disabled;
     if (st.disabled) reg.disabledManagers.add(name);
     else reg.disabledManagers.delete(name);
@@ -191,21 +171,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
     rerender();
   }
 
-  async function checkOne(name: string) {
-    const st = reg.states.get(name);
-    if (!st) return;
-    rerender();
-    try {
-      st.available = await st.instance.isAvailable();
-      st.checked = true;
-    } catch {
-      st.available = false;
-      st.checked = true;
-    }
-    autoDisableMissing(name);
-    rerender();
-  }
-
   async function checkAll() {
     for (const name of reg.names) {
       const st = reg.states.get(name)!;
@@ -221,8 +186,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
     }
   }
 
-  /** 检测完成后：未安装的管理器自动禁用。
-   *  用户手动切换过启用/禁用的管理器不覆盖（userDisabled 记录其选择）。 */
+  /** 检测完成后:未安装的管理器自动禁用。
+   *  用户手动切换过启用/禁用的管理器不覆盖(userDisabled 记录其选择)。 */
   function autoDisableMissing(name: string) {
     const st = reg.states.get(name);
     if (!st || !st.checked) return;
@@ -230,22 +195,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
       if (st.userDisabled === false) return;
       st.disabled = true;
       reg.disabledManagers.add(name);
-    }
-  }
-
-  function openDir() {
-    // 打开配置文件所在目录（系统文件管理器）
-    const dir = configPath().replace(/[/\\][^/\\]+$/, "");
-    try {
-      const cmd =
-        process.platform === "win32"
-          ? ["cmd", "/c", "explorer", dir]
-          : process.platform === "darwin"
-            ? ["open", dir]
-            : ["xdg-open", dir];
-      Bun.spawn(cmd, { stdout: "ignore", stderr: "ignore" });
-    } catch {
-      onToast(t("settings.open_dir_failed"), "warn");
     }
   }
 
@@ -308,41 +257,19 @@ export function SettingsScreen(props: SettingsScreenProps) {
                   <text width={20} fg="#6cf">
                     {lang === "zh_CN" ? t("settings.lang_zh") : t("settings.lang_en")}
                   </text>
-                  <text fg="#888">{"(l 切换)"}</text>
                 </box>
               );
             }
-            if (row.kind === "autocheck") {
-              return (
-                <box key="autocheck" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
-                  <text width={22} fg="#888">
-                    {t("settings.auto_check_updates")}
-                  </text>
-                  <text width={10} fg={reg.autoCheckUpdates ? "#8f8" : "#888"}>
-                    {reg.autoCheckUpdates ? t("settings.on") : t("settings.off")}
-                  </text>
-                  <text fg="#888">{t("settings.auto_check_hint")}</text>
-                </box>
-              );
-            }
-            if (row.kind === "checkall") {
-              return (
-                <box key="checkall" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
-                  <text fg="#6cf">{`[ ${t("settings.check_all")} ]  (a)`}</text>
-                </box>
-              );
-            }
-            if (row.kind === "opendir") {
-              return (
-                <box key="opendir" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
-                  <text fg="#6cf">{`[ ${t("settings.open_dir")} ]  (o)`}</text>
-                </box>
-              );
-            }
-            // done
+            // autocheck
             return (
-              <box key="done" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
-                <text fg="#ff0">{`[ ${t("settings.done")} ]`}</text>
+              <box key="autocheck" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
+                <text width={22} fg="#888">
+                  {t("settings.auto_check_updates")}
+                </text>
+                <text width={10} fg={reg.autoCheckUpdates ? "#8f8" : "#888"}>
+                  {reg.autoCheckUpdates ? t("settings.on") : t("settings.off")}
+                </text>
+                <text fg="#888">{t("settings.auto_check_hint")}</text>
               </box>
             );
           })}
@@ -356,9 +283,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
 
         {/* 底部提示 */}
         <box flexDirection="row" marginTop={1}>
-          <text fg="#666">
-            {"↑↓ 移动  Enter/Space 切换  c 检查  a 全部  l 语言  o 目录  Esc 完成"}
-          </text>
+          <text fg="#666">{"Enter/Space 切换  a 检查"}</text>
         </box>
       </box>
     </ModalBackdrop>
