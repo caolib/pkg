@@ -222,6 +222,12 @@ export function App() {
     loadCurrentView();
   }
 
+  /** 只失效并重载指定管理器的缓存（如安装/更新/卸载只影响目标管理器）。 */
+  function reloadManagers(names: Iterable<string>) {
+    for (const n of names) reg.invalidate(n);
+    loadCurrentView();
+  }
+
   // ------------------------------------------------------------------
   // 表格行 + 列
   // ------------------------------------------------------------------
@@ -407,7 +413,7 @@ export function App() {
       );
     }
     setCheckedKeys(new Set());
-    reloadAll();
+    reloadManagers(Object.keys(groups));
   }
 
   async function runUninstall(groups: ManagerGroups) {
@@ -425,7 +431,7 @@ export function App() {
       );
     }
     setCheckedKeys(new Set());
-    reloadAll();
+    reloadManagers(Object.keys(groups));
   }
 
   // 安装（由搜索界面触发）
@@ -446,7 +452,7 @@ export function App() {
       } catch (exc) {
         showToast(t("notify.install_error", { exc: String(exc) }), "error", 8000);
       }
-      reloadAll();
+      reloadManagers([mgrName]);
     })();
   }
 
