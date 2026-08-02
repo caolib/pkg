@@ -55,3 +55,30 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
+
+  publish-npm:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Verify version matches tag
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "package.json version: $VERSION, tag: $TAG"
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "::error::package.json version ($VERSION) does not match tag ($TAG)"
+            exit 1
+          fi
+      - name: Publish to npm
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
+          npm publish --registry=https://registry.npmjs.org --access=public
