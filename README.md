@@ -15,9 +15,7 @@ A terminal TUI built on [OpenTUI](https://opentui.org) (React bindings) that man
 
 ## Installation
 
-Two options:
-
-**Option 1: via Bun/npm (recommended if you have Bun; package is only 56KB)**
+### Recommended: via Bun/npm (package is only 56KB)
 
 ```bash
 bun i -g @caolib/pkg-tui && pkg      # or npm i -g @caolib/pkg-tui
@@ -27,9 +25,10 @@ bunx @caolib/pkg-tui
 
 Requires [Bun](https://bun.sh).
 
-**Option 2: standalone executable**
+<details>
+<summary><b>Alternative: standalone executable</b> (~110MB, no runtime needed)</summary>
 
-Download the executable for your platform from [GitHub Releases](https://github.com/caolib/pkg/releases) (~110MB, no runtime needed):
+Download the executable for your platform from [GitHub Releases](https://github.com/caolib/pkg/releases):
 
 | Platform | File |
 | ---- | ---- |
@@ -44,6 +43,8 @@ irm https://github.com/caolib/pkg/releases/latest/download/pkg-tui-x86_64-pc-win
 ```
 
 Put `pkg-tui` in your PATH and you're done.
+
+</details>
 
 ## Run from source
 

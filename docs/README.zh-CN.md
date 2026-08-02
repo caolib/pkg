@@ -16,9 +16,7 @@
 
 ## 安装（正式版）
 
-两种方式任选：
-
-**方式一：通过 Bun/npm（有 Bun 时推荐，包仅 56KB）**
+### 推荐：通过 Bun/npm（包仅 56KB）
 
 ```bash
 bun i -g @caolib/pkg-tui && pkg      # 或 npm i -g @caolib/pkg-tui
@@ -28,9 +26,10 @@ bunx @caolib/pkg-tui
 
 需要已安装 [Bun](https://bun.sh)。
 
-**方式二：单文件可执行程序**
+<details>
+<summary><b>备选：单文件可执行程序</b>（约 110MB，无需任何运行时）</summary>
 
-到 [GitHub Releases](https://github.com/caolib/pkg/releases) 下载对应平台的可执行文件（约 110MB，无需任何运行时）：
+到 [GitHub Releases](https://github.com/caolib/pkg/releases) 下载对应平台的可执行文件：
 
 | 平台 | 文件 |
 | ---- | ---- |
@@ -45,6 +44,8 @@ irm https://github.com/caolib/pkg/releases/latest/download/pkg-tui-x86_64-pc-win
 ```
 
 下载后把 `pkg-tui` 加入 PATH 即可直接运行。
+
+</details>
 
 ## 从源码运行
 
