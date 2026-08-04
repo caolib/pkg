@@ -86,7 +86,7 @@ function joinCommands(cmds: string[]): string {
 
 export function App() {
   const renderer = useRenderer();
-  const { height } = useTerminalDimensions();
+  const { width, height } = useTerminalDimensions();
 
   // 运行时（单例，跨渲染稳定）
   const regRef = useRef<ManagerRegistry | null>(null);
@@ -315,7 +315,7 @@ export function App() {
         },
       ];
 
-  const stripItems: StripItem[] = buildStripItems(reg, current);
+  const stripItems: StripItem[] = buildStripItems(reg, current, width >= 100);
 
   const tableVisibleRows = Math.max(4, height - 4); // 顶栏1 + 底栏1 + 表头1 + 边距
 
@@ -938,7 +938,11 @@ export function App() {
           onUninstall={(mn, n) => detailUninstall(mn, n)}
           onInstallVersion={(version) => {
             // managerName 为 null(搜索打开)时取 manager.name
-            detailInstallVersion(overlay.managerName ?? overlay.manager.name, overlay.name, version);
+            detailInstallVersion(
+              overlay.managerName ?? overlay.manager.name,
+              overlay.name,
+              version,
+            );
           }}
           onToast={(m, sev) => showToast(m, sev)}
         />

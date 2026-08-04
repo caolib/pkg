@@ -70,7 +70,7 @@
   "detail.published": "Published",
   "detail.version_count": " ({count} versions)",
   "detail.history": "Version History",
-  "search.placeholder": "Search in {names}...",
+  "search.placeholder": "Search...",
   "search.status_searching": "Searching '{query}'...",
   "search.status_results": "Found {count} results",
   "search.status_no_results": "No packages found",

@@ -59,7 +59,7 @@ export function SearchScreen(props: SearchScreenProps) {
   const { managers, managerIcon, managerName, onClose, onView, onInstall } = props;
 
   const renderer = useRenderer();
-  const { height } = useTerminalDimensions();
+  const { width, height } = useTerminalDimensions();
   const { groups } = useMemo(() => buildSearchGroups(managers), [managers]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string>("");
@@ -91,15 +91,19 @@ export function SearchScreen(props: SearchScreenProps) {
 
   /** 范围条项："全部" + 各可用管理器。 */
   const stripItems: ScopeItem[] = useMemo(() => {
+    const showIcons = width >= 100;
     const items: ScopeItem[] = [
-      { name: ALL_MANAGERS, label: (managerIcon?.(ALL_MANAGERS) ?? "◈ ") + t("button.all") },
+      {
+        name: ALL_MANAGERS,
+        label: (showIcons ? (managerIcon?.(ALL_MANAGERS) ?? "◈ ") : "") + t("button.all"),
+      },
     ];
     for (const m of managers) {
-      const icon = managerIcon?.(m.name) ?? (m.icon ? `${m.icon} ` : "");
+      const icon = showIcons ? (managerIcon?.(m.name) ?? (m.icon ? `${m.icon} ` : "")) : "";
       items.push({ name: m.name, label: icon + (managerName?.(m.name) ?? m.name) });
     }
     return items;
-  }, [managers, managerIcon, managerName]);
+  }, [managers, managerIcon, managerName, width]);
 
   /** 当前 target 在范围条中的索引。 */
   function targetIndex(): number {
@@ -324,9 +328,7 @@ export function SearchScreen(props: SearchScreenProps) {
         <box flexGrow={1}>
           <input
             ref={inputRef}
-            placeholder={t("search.placeholder", {
-              names: managers.map((m) => managerName?.(m.name) ?? m.name).join("/"),
-            })}
+            placeholder={t("search.placeholder")}
             value={query}
             onInput={setQuery}
             onSubmit={

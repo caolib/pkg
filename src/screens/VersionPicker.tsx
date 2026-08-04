@@ -30,10 +30,12 @@ export function VersionPicker(props: VersionPickerProps) {
   const filtered = filter
     ? versions.filter((v) => v.toLowerCase().includes(filter.toLowerCase()))
     : versions;
+  // npm 返回的 versions 键通常按发布时间从旧到新排列,选择版本时优先显示最新版本。
+  const newestFirst = [...filtered].reverse();
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
   const start = safePage * PAGE_SIZE;
-  const pageItems = filtered.slice(start, start + PAGE_SIZE);
+  const pageItems = newestFirst.slice(start, start + PAGE_SIZE);
 
   useKeyboard((key) => {
     if (key.name === "escape") {

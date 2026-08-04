@@ -85,6 +85,8 @@ export function ManagerStrip(props: ManagerStripProps): ReactNode {
         return (
           <text
             key={`strip-${i}`}
+            // 管理器按钮必须保持完整宽度,否则窄屏时 Flex 会压缩文字并造成错位。
+            flexShrink={0}
             fg={fg}
             bg={bg}
             onMouseDown={() => onButton(it.kind, it.name)}
@@ -96,7 +98,11 @@ export function ManagerStrip(props: ManagerStripProps): ReactNode {
 }
 
 /** 在 MainScreen 中根据 reg/current 构造顶栏项列表。 */
-export function buildStripItems(reg: ManagerRegistry, current: string): StripItem[] {
+export function buildStripItems(
+  reg: ManagerRegistry,
+  current: string,
+  showManagerIcons = true,
+): StripItem[] {
   const items: StripItem[] = [
     { kind: "settings", name: null, label: t("button.settings"), active: false },
     { kind: "search", name: null, label: t("button.search"), active: false },
@@ -105,7 +111,7 @@ export function buildStripItems(reg: ManagerRegistry, current: string): StripIte
   items.push({
     kind: "manager",
     name: ALL_MANAGERS,
-    label: reg.managerIcon(ALL_MANAGERS) + t("button.all"),
+    label: (showManagerIcons ? reg.managerIcon(ALL_MANAGERS) : "") + t("button.all"),
     active: current === ALL_MANAGERS,
   });
   for (const n of reg.names) {
@@ -114,7 +120,7 @@ export function buildStripItems(reg: ManagerRegistry, current: string): StripIte
     items.push({
       kind: "manager",
       name: n,
-      label: reg.managerIcon(n) + reg.managerDisplayName(n),
+      label: (showManagerIcons ? reg.managerIcon(n) : "") + reg.managerDisplayName(n),
       active: current === n,
     });
   }
