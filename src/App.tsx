@@ -202,32 +202,37 @@ export function App() {
     rerender();
     setLoadingHint(true);
     // 逐个加载 installed，完成即刷新
-    for (const st of managers) {
-      if (st.loadedInstalled) continue;
-      try {
-        st.installed = await st.instance.listInstalled();
-        st.loadedInstalled = true;
-      } catch {
-        st.installed = [];
-        st.loadedInstalled = true;
-      }
-      setCursor(0);
-      rerender();
-    }
+    await Promise.all(
+      managers.map(async (st) => {
+        if (st.loadedInstalled) return;
+        try {
+          st.installed = await st.instance.listInstalled();
+          st.loadedInstalled = true;
+        } catch {
+          st.installed = [];
+          st.loadedInstalled = true;
+        }
+        setCursor(0);
+        rerender();
+      }),
+    );
     // 逐个检查 outdated，完成即刷新
-    for (const st of managers) {
-      if (opts?.skipOutdated) break;
-      if (st.loadedOutdated) continue;
-      try {
-        st.outdated = await st.instance.listOutdated();
-        st.outdatedMap = new Map(st.outdated.map((p) => [p.name, p]));
-        st.loadedOutdated = true;
-      } catch {
-        st.outdated = [];
-        st.outdatedMap = new Map();
-        st.loadedOutdated = true;
-      }
-      rerender();
+    if (!opts?.skipOutdated) {
+      await Promise.all(
+        managers.map(async (st) => {
+          if (st.loadedOutdated) return;
+          try {
+            st.outdated = await st.instance.listOutdated();
+            st.outdatedMap = new Map(st.outdated.map((p) => [p.name, p]));
+            st.loadedOutdated = true;
+          } catch {
+            st.outdated = [];
+            st.outdatedMap = new Map();
+            st.loadedOutdated = true;
+          }
+          rerender();
+        }),
+      );
     }
     setLoadingHint(false);
   }
