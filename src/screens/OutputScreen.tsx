@@ -17,9 +17,13 @@ import {
   type MouseEvent,
   type ScrollBoxRenderable,
 } from "@opentui/core";
-import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
 import { useEffect, useRef, useState } from "react";
-import { FALLBACK_BACKGROUND, getTerminalBackgroundSync } from "../terminal-colors";
+import {
+  FALLBACK_BACKGROUND,
+  getTerminalBackground,
+  getTerminalBackgroundSync,
+} from "../terminal-colors";
 import { t } from "../i18n";
 import { opLog, type OpLogEntry, type OpStatus } from "../ops";
 
@@ -52,6 +56,7 @@ function elapsedText(entry: OpLogEntry): string {
 
 export function OutputScreen(props: OutputScreenProps) {
   const { onClose } = props;
+  const renderer = useRenderer();
   const { width } = useTerminalDimensions();
   const [, force] = useState(0);
   const [cursor, setCursor] = useState(0);
@@ -62,8 +67,20 @@ export function OutputScreen(props: OutputScreenProps) {
   const entries = opLog.entries;
   const entry: OpLogEntry | null = entries[cursor] ?? null;
 
-  // 背景色跟随终端（主页已缓存，这里同步读取，避免先渲染一帧 FALLBACK 深色）
-  const [termBg] = useState<string>(() => getTerminalBackgroundSync() ?? FALLBACK_BACKGROUND);
+  // 背景色跟随主页（终端默认背景色）。主页启动时已触发 getTerminalBackground
+  // 并模块级缓存，这里直接同步读缓存初始化，避免先渲染一帧 FALLBACK（深色闪烁）
+  // 再切换到真实背景；缓存未就绪时（启动竞态）回退 FALLBACK，effect 再补正。
+  const [termBg, setTermBg] = useState<string>(
+    () => getTerminalBackgroundSync() ?? FALLBACK_BACKGROUND,
+  );
+
+  useEffect(() => {
+    const bg = getTerminalBackgroundSync();
+    if (bg && bg !== termBg) setTermBg(bg);
+    getTerminalBackground(renderer).then((b) => {
+      if (b !== termBg) setTermBg(b);
+    });
+  }, [renderer]);
 
   // 日志变化（新条目/追加输出/结束）实时刷新
   useEffect(() => opLog.subscribe(() => force((n) => n + 1)), []);
