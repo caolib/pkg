@@ -10,7 +10,7 @@ import type { InputRenderable } from "@opentui/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTextInputFocused } from "./focus";
 import { getTerminalBackground } from "./terminal-colors";
-import { dispWidthChar, dispWidthStr } from "./width";
+import { beginTerminalProgress, trackOpLogProgress } from "./terminal-progress";
 import { t, setLanguage, currentLanguage } from "./i18n";
 import {
   ALL_MANAGERS,
@@ -31,6 +31,7 @@ import {
   type StripItemKind,
 } from "./components/ManagerStrip";
 import { LoadingIndicator } from "./components/LoadingIndicator";
+import { TaskStatus } from "./components/TaskStatus";
 import { ConfirmDialog } from "./screens/ConfirmDialog";
 import { SearchScreen } from "./screens/SearchScreen";
 import { DetailScreen } from "./screens/DetailScreen";
@@ -66,24 +67,6 @@ interface Toast {
   severity: "info" | "warn" | "error";
 }
 
-const PROGRESS_TIMEOUT_MS = 60_000;
-
-/** 进度通知的消息：多条命令用 " && " 连接，超宽按显示列截断加省略号。
- *  toast 卡片 maxWidth=80（含内边距），截到 72 列可完整显示省略号。 */
-function joinCommands(cmds: string[]): string {
-  const joined = cmds.join(" && ");
-  if (dispWidthStr(joined) <= 72) return joined;
-  const out: string[] = [];
-  let col = 0;
-  for (const ch of joined) {
-    const w = dispWidthChar(ch);
-    if (col + w > 71) break;
-    out.push(ch);
-    col += w;
-  }
-  return out.join("") + "…";
-}
-
 export function App() {
   const renderer = useRenderer();
   const { width, height } = useTerminalDimensions();
@@ -107,6 +90,10 @@ export function App() {
   const [loadingHint, setLoadingHint] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  // 任务终态（TaskStatus 回调上报）：失败时高亮底栏"查看输出"提示
+  const [taskOutcome, setTaskOutcome] = useState<"success" | "failed" | null>(null);
+  // 按 o 进入输出界面时递增：清除 TaskStatus 已结算的终态（视为已知晓结果）
+  const [taskClearToken, setTaskClearToken] = useState(0);
   // toast 计时器用 ref 而非 state：同轮异步内连续 showToast 时，state 闭包
   // 读到的是旧值，第二个 clearTimeout 清不掉第一个 timer，旧 timer 会提前
   // 冲掉新的 toast（见 showToast）。
@@ -174,6 +161,14 @@ export function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 终端标签页/任务栏转圈（OSC 9;4，纯交互优化，失败无害，见 terminal-progress）：
+  // 命令任务（安装/更新/卸载）由 opLog 驱动；首页加载/刷新由 loadingHint 驱动
+  useEffect(() => trackOpLogProgress(), []);
+  useEffect(() => {
+    if (!loadingHint) return;
+    return beginTerminalProgress();
+  }, [loadingHint]);
 
   function showToast(message: string, severity: Toast["severity"] = "info", timeout = 4000) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -433,53 +428,15 @@ export function App() {
   }
 
   async function runUpdate(groups: ManagerGroups) {
-    showToast(joinCommands(previewCommands(reg, groups, "update")), "info", PROGRESS_TIMEOUT_MS);
-    const summary = await doUpdateAll(reg, groups);
-    setToast(null);
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    if (summary.fail === 0) {
-      showToast(t("notify.updated_ok", { count: String(summary.ok) }), "info");
-    } else if (summary.ok + summary.fail === 1) {
-      showToast(t("notify.updated_failed"), "error", 8000);
-    } else if (summary.ok === 0) {
-      showToast(
-        t("notify.updated_partial", { ok: "0", fail: String(summary.fail) }),
-        "error",
-        8000,
-      );
-    } else {
-      showToast(
-        t("notify.updated_partial", { ok: String(summary.ok), fail: String(summary.fail) }),
-        "warn",
-        8000,
-      );
-    }
+    // 执行状态由底栏 TaskStatus 呈现（opLog 跟踪），失败明细按 o 查看
+    await doUpdateAll(reg, groups);
     setCheckedKeys(new Set());
     reloadManagers(Object.keys(groups));
   }
 
   async function runUninstall(groups: ManagerGroups) {
-    showToast(joinCommands(previewCommands(reg, groups, "uninstall")), "info", PROGRESS_TIMEOUT_MS);
-    const summary = await doUninstallAll(reg, groups);
-    setToast(null);
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    if (summary.fail === 0) {
-      showToast(t("notify.uninstalled_ok", { count: String(summary.ok) }), "info");
-    } else if (summary.ok + summary.fail === 1) {
-      showToast(t("notify.uninstalled_failed"), "error", 8000);
-    } else if (summary.ok === 0) {
-      showToast(
-        t("notify.uninstalled_partial", { ok: "0", fail: String(summary.fail) }),
-        "error",
-        8000,
-      );
-    } else {
-      showToast(
-        t("notify.uninstalled_partial", { ok: String(summary.ok), fail: String(summary.fail) }),
-        "warn",
-        8000,
-      );
-    }
+    // 执行状态由底栏 TaskStatus 呈现（opLog 跟踪），失败明细按 o 查看
+    await doUninstallAll(reg, groups);
     setCheckedKeys(new Set());
     reloadManagers(Object.keys(groups));
   }
@@ -492,16 +449,8 @@ export function App() {
       return;
     }
     (async () => {
-      showToast(st.instance.installCommand(name), "info", PROGRESS_TIMEOUT_MS);
-      try {
-        const res = await st.instance.install(name);
-        setToast(null);
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        if (res.success) showToast(t("notify.installed", { name }), "info");
-        else showToast(t("notify.install_failed", { message: res.message ?? "" }), "error", 8000);
-      } catch (exc) {
-        showToast(t("notify.install_error", { exc: String(exc) }), "error", 8000);
-      }
+      // 执行状态由底栏 TaskStatus 呈现（opLog 跟踪），失败明细按 o 查看
+      await st.instance.install(name).catch(() => undefined);
       reloadManagers([mgrName]);
     })();
   }
@@ -561,17 +510,8 @@ export function App() {
       showToast(t("notify.unknown_manager", { name: managerName }), "error");
       return;
     }
-    const spec = `${name}@${version}`;
-    showToast(st.instance.installVersionCommand(name, version), "info", PROGRESS_TIMEOUT_MS);
-    try {
-      const res = await st.instance.installVersion(name, version);
-      setToast(null);
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      if (res.success) showToast(t("notify.installed", { name: spec }), "info");
-      else showToast(t("notify.install_failed", { message: res.message ?? "" }), "error", 8000);
-    } catch (exc) {
-      showToast(t("notify.install_error", { exc: String(exc) }), "error", 8000);
-    }
+    // 执行状态由底栏 TaskStatus 呈现（opLog 跟踪），失败明细按 o 查看
+    await st.instance.installVersion(name, version).catch(() => undefined);
     reloadManagers([managerName]);
   }
 
@@ -750,6 +690,8 @@ export function App() {
 
   function openOutput() {
     exitFilterMode();
+    // 查看输出=已知晓执行结果：清除底栏终态显示与"查看输出"高亮
+    setTaskClearToken((n) => n + 1);
     setOverlay({ kind: "output" });
   }
 
@@ -857,9 +799,16 @@ export function App() {
           }}
         />
       </box>
-      {/* 底栏：快捷键提示 */}
-      <box flexDirection="row" height={1} backgroundColor="#111" paddingLeft={1}>
-        <text fg="#666">{renderBindingHints(reg.keybindings, filterMode)}</text>
+      {/* 底栏：快捷键提示（左）+ 任务执行状态（右，运行中转圈/成功暂显/失败常驻）。
+          有任务失败时"查看输出"提示段高亮为正文色（#ddd，同表格正文） */}
+      <box flexDirection="row" height={1} backgroundColor="#111" paddingLeft={1} paddingRight={1}>
+        {renderBindingHints(reg.keybindings, filterMode).map((s, i) => (
+          <text key={i} fg={s.highlightOnFailure && taskOutcome === "failed" ? "#ddd" : "#666"}>
+            {i === 0 ? s.text : `   ${s.text}`}
+          </text>
+        ))}
+        <box flexGrow={1} />
+        <TaskStatus onOutcomeChange={setTaskOutcome} clearToken={taskClearToken} />
       </box>
 
       {/* 加载指示器：右下角悬浮（不挡表格），installed+outdated 全部就绪后消失 */}
@@ -992,22 +941,28 @@ function matchBinding(
 }
 
 /** 底栏快捷键提示文本。filterMode=true 时显示过滤模式提示。 */
-function renderBindingHints(kb: Record<string, string>, filterMode: boolean): string {
+interface HintSeg {
+  text: string;
+  /** 有任务失败时该段高亮为正文色（#ddd），否则与其他提示同为暗色 */
+  highlightOnFailure?: boolean;
+}
+
+/** 底栏快捷键提示分段：返回段数组，由调用方按段渲染（失败高亮只染个别段）。 */
+function renderBindingHints(kb: Record<string, string>, filterMode: boolean): HintSeg[] {
   if (filterMode) {
-    return `${t("filter.placeholder")}  |  Esc/${t("binding.back")}  Enter 确认`;
+    return [{ text: `${t("filter.placeholder")}  |  Esc/${t("binding.back")}  Enter 确认` }];
   }
   const seg = (label: string, keys: string) => `${keys} ${label}`;
   return [
-    seg(t("binding.settings"), kb.open_settings ?? "alt+s"),
-    seg(t("binding.search"), kb.open_search ?? "s"),
-    seg(t("binding.output"), kb.view_output ?? "o"),
-    seg(t("binding.refresh"), kb.refresh_all ?? "r"),
-    seg(t("binding.check_updates"), kb.check_updates ?? "c"),
-    seg(t("binding.update"), kb.update_selected ?? "u"),
-    seg(t("binding.uninstall"), kb.uninstall_selected ?? "d"),
-    seg(t("binding.toggle"), kb.toggle_select ?? "space"),
-    seg(t("binding.filter"), kb.toggle_filter_updates ?? "f"),
-    "← → 切换管理器",
-    "/ 过滤",
-  ].join("   ");
+    { text: seg(t("binding.settings"), kb.open_settings ?? "alt+s") },
+    { text: seg(t("binding.search"), kb.open_search ?? "s") },
+    { text: seg(t("binding.output"), kb.view_output ?? "o"), highlightOnFailure: true },
+    { text: seg(t("binding.refresh"), kb.refresh_all ?? "r") },
+    { text: seg(t("binding.check_updates"), kb.check_updates ?? "c") },
+    { text: seg(t("binding.update"), kb.update_selected ?? "u") },
+    { text: seg(t("binding.uninstall"), kb.uninstall_selected ?? "d") },
+    { text: seg(t("binding.toggle"), kb.toggle_select ?? "space") },
+    { text: seg(t("binding.filter"), kb.toggle_filter_updates ?? "f") },
+    { text: "/ 搜索" },
+  ];
 }

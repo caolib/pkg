@@ -19,6 +19,8 @@ i18n（中/英）、配置持久化、快捷键配置。
 - 查看可更新的包、批量勾选更新、卸载（带确认框 + 命令预览）
 - 全局搜索包（同 registry 的管理器只搜一次）、查看包详情、安装包
 - 命令输出查看（`o`）：安装/更新/卸载的实时执行日志，运行中自动跟随底部
+- 底栏右侧任务状态：执行中显示转圈 + "{n}个任务"，全部成功显示 ✓（3 秒隐藏），
+  有失败显示 ✗ 常驻到下一批开始（执行结果不再弹右下角 toast，失败明细按 `o` 查看）
 - 本地过滤框按包名实时过滤当前列表
 
 界面语言默认随系统 locale（zh_CN/en_US），可经配置文件切换。
@@ -91,6 +93,7 @@ src/
 ├── date.ts                # formatRelativeTime 相对时间（i18n，zh/en；解析失败原样返回）
 ├── width.ts               # dispWidthStr 显示宽度（CJK 全角/emoji 计 2 列）
 ├── terminal-colors.ts     # getTerminalBackground 终端默认背景色（跟随主页背景）；getTerminalBackgroundSync 同步读缓存
+├── terminal-progress.ts   # Windows Terminal OSC 9;4 标签页/任务栏转圈（引用计数；非 TTY 不写、try/catch 兜底）
 ├── locales/{zh_CN,en_US}.json
 ├── managers/
 │   ├── types.ts           # PackageInfo / SearchResult / PackageDetail / OperationResult
@@ -110,7 +113,8 @@ src/
 │   ├── LoadingIndicator.tsx # 全局加载指示器（单方向扫描 + 色衰减动画，setInterval 推帧）
 │   ├── ModalBackdrop.tsx  # 模态背景容器（overlay 实底盖住主页；ConfirmDialog/
 │   │                      #   DetailScreen/SettingsScreen 共用，终端背景色见 terminal-colors）
-│   └── ManagerStrip.tsx   # 顶栏：设置/搜索按钮 + 过滤输入 + "全部"+各管理器按钮
+│   ├── ManagerStrip.tsx   # 顶栏：设置/搜索按钮 + 过滤输入 + "全部"+各管理器按钮
+│   └── TaskStatus.tsx     # 底栏右侧任务状态（订阅 opLog：运行中转圈+计数、✓ 3 秒隐藏、✗ 常驻）
 └── screens/
     ├── ConfirmDialog.tsx  # 确认框（命令预览 + 确定/取消）
     ├── SearchScreen.tsx   # 搜索（registry 分组并发，i 安装 / v 详情；失败来源在状态栏标注）
@@ -222,6 +226,20 @@ src/
     输出实时追加；关闭即退订。**新增加入操作日志的命令必须传 `{ log: true }`**，
     否则用户在"命令输出"界面看不到它；纯查询类命令不要传。opLog 是 mutable 单例，
     OutputScreen 每次渲染直接读 `opLog.entries`（同 ManagerRegistry 的刷新约定）。
+  - **命令执行状态不走 toast**：安装/更新/卸载的结果不再弹右下角 toast（其他提示
+    如"没有选中的包"仍用 toast）。主页底栏右侧 `components/TaskStatus.tsx` 订阅同一
+    opLog：有运行中条目显示转圈（Braille 字符帧）+ `{n}个任务`；一批全部结束且全部
+    成功显示 ✓（3 秒隐藏）；有失败显示 ✗ 常驻到下一批任务开始，失败明细按 `o` 查看。
+    失败期间底栏 `o 查看输出` 提示段高亮为正文色 `#ddd`（`TaskStatus` 经
+    `onOutcomeChange` 回调上报终态，App 按段渲染提示；不要把 opLog 订阅提升到
+    App——逐行输出会触发整页重渲）。用户按 `o` 进入输出界面时 App 递增
+    `clearToken`，TaskStatus 清除已结算的终态（视为已知晓结果，高亮随之回落）；
+    运行中的批次不受影响，结束后仍正常结算。
+  - **终端标签页转圈（`terminal-progress.ts`）**：耗时任务期间向 stdout 写 Windows
+    Terminal OSC 9;4"不确定进度"序列（state=3 转圈），结束写 state=0 清除。两个
+    驱动源：`trackOpLogProgress()`（opLog 有运行中条目=安装/更新/卸载）与主页
+    `loadingHint`（首页加载/刷新），共用引用计数防重叠互踩；进程 exit 兜底清除。
+    纯交互优化：非 TTY 不写、写入 try/catch——任何失败不得影响主流程。
 - **状态刷新**：`ManagerRegistry`（`useRef` 单例）内部是 mutable；数据加载后调 `rerender()`
   强制重渲染，`buildInstalledRows`/`buildStripItems` 每次**直接计算**（不能用 `useMemo` 缓存，
   否则 reg 内部变化不会反映）。
