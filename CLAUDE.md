@@ -116,11 +116,16 @@ src/
 │   ├── ManagerStrip.tsx   # 顶栏：设置/搜索按钮 + 过滤输入 + "全部"+各管理器按钮
 │   └── TaskStatus.tsx     # 底栏右侧任务状态（订阅 opLog：运行中转圈+计数、✓ 3 秒隐藏、✗ 常驻）
 └── screens/
-    ├── ConfirmDialog.tsx  # 确认框（命令预览 + 确定/取消）
-    ├── SearchScreen.tsx   # 搜索（registry 分组并发，i 安装 / v 详情；失败来源在状态栏标注）
-    ├── DetailScreen.tsx   # 包详情（后台 view，加载态，更新/删除/关闭）
+    ├── ConfirmDialog.tsx  # 确认框（命令预览 + 确定/取消；options 多按钮模式：合并
+    │                      #   registry 安装时每个可用管理器一个按钮，预览随聚焦切换）
+    ├── SearchScreen.tsx   # 搜索（registry 分组并发，i 安装 / v 详情；失败来源在状态栏标注；
+    │                      #   范围条按 registry 分组显示（pnpm/bun 并入 npm）；active=false
+    │                      #   时被上层 overlay 压住，不响应按键、输入框不聚焦）
+    ├── DetailScreen.tsx   # 包详情（后台 view，加载态；已安装视图：更新(默认聚焦)/删除/安装版本，
+    │                      #   搜索视图：安装(默认聚焦,装最新版)/安装版本/关闭；active 门控同 SearchScreen）
     ├── OutputScreen.tsx   # 命令输出（安装/更新/卸载执行日志：左条目列表 + 右 sticky 输出区，
-    │                      #   运行中实时追加并跟随底部，↑↓ 切条目，PgUp/PgDn/Home/End 滚动）
+    │                      #   运行中实时追加并跟随底部，↑↓ 切条目，PgUp/PgDn/Home/End 滚动；
+    │                      #   p 终止运行中条目，r 重试/a 管理员重试 failed 条目，底栏上下文提示）
     └── SettingsScreen.tsx # 设置（快捷键/图标/语言，保存回 config.json；自建列表交互
                            #   同 PackageTable，见设置界面鼠标行为段落与 settings-screen-mouse 测试）
 ```
@@ -141,7 +146,7 @@ src/
 | —（迁移时新增）       | `focus.ts`、`components/ModalBackdrop.tsx`（OpenTUI 无 Textual 模态/焦点原语，迁移时补） |
 | Textual `DataTable`   | 自建 `PackageTable`            |
 | Textual `@work` worker| 普通 async + setState/rerender |
-| `push_screen/dismiss` | overlay 数组（一次一层）       |
+| `push_screen/dismiss` | overlay 栈（多层叠放，仅顶层接收按键） |
 
 ### 运行时要点
 
@@ -197,14 +202,14 @@ src/
   - **加载状态统一用 `LoadingIndicator`**：所有需要显示"加载中"的地方都应使用
     `src/components/LoadingIndicator.tsx`（单方向扫描 + 尾部色衰减动画），不要再写
     静态 `<text>加载中...</text>`。已接入：主页 `loadingHint` 空表占位、详情屏
-    `state.status==="loading"`、搜索屏状态栏（搜索中）与 `PackageTable.emptyHint`（加载态）。
+    `state.status==="loading"`、搜索屏底栏右侧状态（搜索中）与 `PackageTable.emptyHint`（加载态）。
     动画靠 `setInterval` 推帧 + React state 重绘，卸载清计时器；`PackageTable.emptyHint`
     已放宽为 `ReactNode` 以容纳它。新增加载场景一律复用此组件，保证全局风格一致。
   - **`scrollX` 模式的空白行修复**：OpenTUI ScrollBox 在内容未横向溢出时，横向滚动条
     本应隐藏，但首布局仍为它预留 1 行（visible 切到 false 后布局未刷新），导致表格
     底部多一行空白。`PackageTable` 的 `useEffect` 在内容 `onSizeChange` 时调
     `horizontalScrollBar.resetVisibilityControl()` 重算可见性并重排，回收该预留行。
-     故 `scrollX` 表格的 `visibleRows` 按"无预留"算（搜索界面用 `height - 3`，主页
+     故 `scrollX` 表格的 `visibleRows` 按"无预留"算（搜索界面用 `height - 2` 输入行1+底栏1，主页
      无 `scrollX` 用 `height - 4` 顶栏1+底栏1+表头1+paddingTop1）。
   - **不画竖直滚动条**：PackageTable 的纵向滚动是光标驱动的窗口（`windowStart`），
     不是 ScrollBox 平移，故不复用 ScrollBox 原生 `scrollY`，也没有自绘滚动条——
@@ -213,8 +218,19 @@ src/
   - **搜索"全部"并发 + 失败可见**：`SearchScreen.doSearch` 用 `Promise.allSettled` 并发
     各 registry 代表（`buildSearchGroups`：同 registry 只搜一次，npm 系用 npm；不同
     registry 如 scoop/winget 各自独立）。任一来源 search 抛错**不能静默吞掉**——要在
-    状态栏用 `search.status_partial_failed`（`（部分来源搜索失败：{names}）`）标注，
+    底栏右侧状态用 `search.status_partial_failed`（`（部分来源搜索失败：{names}）`）标注，
     否则用户会误以为"全部"没搜某个管理器（曾误判 scoop 未被搜索）。
+  - **overlay 是栈不是单层**：搜索页打开详情/确认框时压栈（下层保持挂载、搜索
+    状态不丢），关闭上层回到下层——下载页装包后不再被踢回主页。只有顶层接收
+    按键：`SearchScreen`/`DetailScreen` 的 `active` prop 为 false 时 useKeyboard
+    直接返回，且搜索输入框 `focused` 连带 false（否则字符键会穿过上层 overlay
+    落进搜索框）。确认框 onConfirm 用 `popOverlay(2)` 连详情一起关，onCancel
+    用 `popOverlay()` 回到详情。
+  - **合并 registry 安装在确认框选管理器**：同 registry（npm/pnpm/bun）搜索只搜
+    代表（npm）、结果合并。安装入口（搜索 `i`、详情"安装"/"安装版本"）统一走
+    `confirmSearchInstall`：确认框 options 多按钮模式，每个可用管理器一个按钮
+    （代表排最前），命令预览随聚焦按钮切换；已安装视图的更新/卸载/安装版本
+    管理器固定，用经典确定/取消。确认后留在搜索页（后台执行）。
   - **overlay 背景跟随终端**：`SearchScreen` 等 overlay 用 `terminal-colors.ts` 的
     `getTerminalBackground` 取终端默认背景色（主页根容器透明，overlay 必须实底盖住）。
     为避免"先渲染一帧 FALLBACK 深色再切到真实背景"的闪烁，`App` 启动时即调
@@ -226,6 +242,14 @@ src/
     输出实时追加；关闭即退订。**新增加入操作日志的命令必须传 `{ log: true }`**，
     否则用户在"命令输出"界面看不到它；纯查询类命令不要传。opLog 是 mutable 单例，
     OutputScreen 每次渲染直接读 `opLog.entries`（同 ManagerRegistry 的刷新约定）。
+    **失败条目可重试**：`OutputScreen` 对 `failed` 条目提供 `r`（普通重试）/ `a`
+    （win32 以管理员身份重试，UAC 提权）。重试目标取条目结构化的 `executable`/`args`
+    （`runCommand` 在 `log:true` 时注入 `opLog.begin(title, { executable, args })`），
+    未注入时回退解析 `title`。提权由 `_cli.runCommandElevated` 实现：经 PowerShell
+    `Start-Process -Verb RunAs` 提权运行 `cmd /c "<exe> <args> > out.tmp 2> err.tmp"`，
+    把提权子进程 stdout/stderr 重定向到临时文件后读回写入同一 opLog（用户仍在"命令输出"
+    界面可见）；UAC 被拒绝/spawn 失败则记一行失败说明（不二次弹窗）。重试经 `onRetry`
+    回调交 App 执行并 `reloadManagers([executable])`（executable==管理器 name）。
   - **命令执行状态不走 toast**：安装/更新/卸载的结果不再弹右下角 toast（其他提示
     如"没有选中的包"仍用 toast）。主页底栏右侧 `components/TaskStatus.tsx` 订阅同一
     opLog：有运行中条目显示转圈（Braille 字符帧）+ `{n}个任务`；一批全部结束且全部
@@ -263,7 +287,7 @@ src/
 | `alt+s`                            | 打开设置             |
 | `Ctrl+C`                           | 退出                 |
 
-搜索界面：`i` 安装、`v` 详情、`Esc` 返回。详情/确认：`← →` 切按钮、`Esc` 关闭。
+搜索界面：`i` 安装（确认框内选管理器，确认后留在搜索页）、`v` 详情、`Esc` 返回。详情/确认：`← →` 切按钮、`Esc` 关闭（逐层返回）。
 
 ## 如何新增一个包管理器后端
 

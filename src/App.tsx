@@ -1,6 +1,6 @@
 /**
  * 主应用 App：持有 ManagerRegistry 运行时状态，渲染顶栏 + 已安装表格 + 底栏，
- * 统一用 useKeyboard 分发按键，管理 overlay（搜索/详情/确认）与 toast。
+ * 统一用 useKeyboard 分发按键，管理 overlay 栈（搜索/详情/确认/管理器选择）与 toast。
  *
  * 对应原 Python 项目 pkg_tui/app.py 的主界面与操作编排。
  */
@@ -23,6 +23,7 @@ import {
   type ManagerGroups,
 } from "./runtime";
 import type { PackageManager } from "./managers";
+import { runCommand, runCommandElevated } from "./managers/_cli";
 import { PackageTable, type TableColumn } from "./components/PackageTable";
 import {
   ManagerStrip,
@@ -32,7 +33,7 @@ import {
 } from "./components/ManagerStrip";
 import { LoadingIndicator } from "./components/LoadingIndicator";
 import { TaskStatus } from "./components/TaskStatus";
-import { ConfirmDialog } from "./screens/ConfirmDialog";
+import { ConfirmDialog, type ConfirmOption } from "./screens/ConfirmDialog";
 import { SearchScreen } from "./screens/SearchScreen";
 import { DetailScreen } from "./screens/DetailScreen";
 import { SettingsScreen, type SettingsResult } from "./screens/SettingsScreen";
@@ -57,7 +58,9 @@ type Overlay =
       kind: "confirm";
       message: string;
       commands?: string[];
-      onConfirm: () => void;
+      /** 多选项模式（合并 registry 安装选管理器）：按钮 = options + 取消 */
+      options?: ConfirmOption[];
+      onConfirm?: () => void;
       onCancel: () => void;
     };
 
@@ -88,7 +91,13 @@ export function App() {
   const [filterUpdates, setFilterUpdates] = useState(false);
   const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
   const [loadingHint, setLoadingHint] = useState(false);
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  // overlay 栈：搜索页可被详情/确认框/管理器选择器压在下层（保持挂载、状态不丢，
+  // 仅顶层接收按键——下层组件用 active prop 门控），关闭上层回到下层，
+  // 在下载页装包后不再被踢回主页
+  const [overlays, setOverlays] = useState<Overlay[]>([]);
+  const pushOverlay = (o: Overlay) => setOverlays((s) => [...s, o]);
+  const popOverlay = (n = 1) =>
+    setOverlays((s) => (n >= s.length ? [] : s.slice(0, s.length - n)));
   const [toast, setToast] = useState<Toast | null>(null);
   // 任务终态（TaskStatus 回调上报）：失败时高亮底栏"查看输出"提示
   const [taskOutcome, setTaskOutcome] = useState<"success" | "failed" | null>(null);
@@ -340,7 +349,7 @@ export function App() {
       showToast(t("notify.no_package_manager"), "warn");
       return;
     }
-    setOverlay({
+    pushOverlay({
       kind: "detail",
       manager: found.manager,
       name: found.pkg.name,
@@ -395,15 +404,15 @@ export function App() {
     }
     const total = Object.values(groups).reduce((a, v) => a + v.length, 0);
     const cmds = previewCommands(reg, groups, "update");
-    setOverlay({
+    pushOverlay({
       kind: "confirm",
       message: t("confirm.update", { count: String(total) }),
       commands: cmds,
       onConfirm: () => {
-        setOverlay(null);
+        popOverlay();
         runUpdate(groups);
       },
-      onCancel: () => setOverlay(null),
+      onCancel: () => popOverlay(),
     });
   }
 
@@ -415,15 +424,15 @@ export function App() {
     }
     const total = Object.values(groups).reduce((a, v) => a + v.length, 0);
     const cmds = previewCommands(reg, groups, "uninstall");
-    setOverlay({
+    pushOverlay({
       kind: "confirm",
       message: t("confirm.uninstall_multi", { count: String(total) }),
       commands: cmds,
       onConfirm: () => {
-        setOverlay(null);
+        popOverlay();
         runUninstall(groups);
       },
-      onCancel: () => setOverlay(null),
+      onCancel: () => popOverlay(),
     });
   }
 
@@ -455,52 +464,93 @@ export function App() {
     })();
   }
 
-  // 详情屏的更新/删除：关闭详情后走确认
+  // 详情屏的更新/删除：确认框压在详情上，确认后连详情一起关（回主页/搜索页）
   function detailUpdate(managerName: string, name: string) {
-    setOverlay(null);
-    setOverlay({
+    pushOverlay({
       kind: "confirm",
       message: t("confirm.update", { count: "1" }),
       commands: previewCommands(reg, { [managerName]: [name] }, "update"),
       onConfirm: () => {
-        setOverlay(null);
+        popOverlay(2);
         runUpdate({ [managerName]: [name] });
       },
-      onCancel: () => setOverlay(null),
+      onCancel: () => popOverlay(),
     });
   }
 
   function detailUninstall(managerName: string, name: string) {
-    setOverlay(null);
-    setOverlay({
+    pushOverlay({
       kind: "confirm",
       message: t("confirm.uninstall_multi", { count: "1" }),
       commands: previewCommands(reg, { [managerName]: [name] }, "uninstall"),
       onConfirm: () => {
-        setOverlay(null);
+        popOverlay(2);
         runUninstall({ [managerName]: [name] });
       },
-      onCancel: () => setOverlay(null),
+      onCancel: () => popOverlay(),
     });
   }
 
-  /** 详情屏的安装特定版本:关闭详情后走确认。 */
+  /** 详情屏的安装特定版本：确认框压在详情上，确认后连详情一起关。 */
   function detailInstallVersion(managerName: string, name: string, version: string) {
-    setOverlay(null);
     const st = reg.states.get(managerName);
     const cmd = st
       ? st.instance.installVersionCommand(name, version)
       : `${managerName} install ${name}@${version}`;
-    setOverlay({
+    pushOverlay({
       kind: "confirm",
       message: t("confirm.install_version", { name, version }),
       commands: [cmd],
       onConfirm: () => {
-        setOverlay(null);
+        popOverlay(2);
         runInstallVersion(managerName, name, version);
       },
-      onCancel: () => setOverlay(null),
+      onCancel: () => popOverlay(),
     });
+  }
+
+  /** 搜索来源的安装确认框：合并 registry（npm/pnpm/bun）时每个可用管理器
+   *  一个按钮（代表管理器排最前），命令预览随聚焦按钮切换；单成员时就是
+   *  一个管理器按钮 + 取消。
+   *  pops = 确认后从 overlay 栈弹出的层数：确认框压在详情上为 2（连详情
+   *  一起关，回搜索页），压在搜索页上为 1（留在搜索页）。 */
+  function confirmSearchInstall(
+    rep: PackageManager,
+    name: string,
+    version: string | undefined,
+    pops: number,
+  ) {
+    const key = rep.registry ?? rep.name;
+    const members = getAvailableManagers()
+      .filter((m) => (m.registry ?? m.name) === key)
+      .sort((a, b) => (a.name === rep.name ? -1 : b.name === rep.name ? 1 : 0));
+    const options: ConfirmOption[] = members.map((m) => ({
+      label: reg.managerDisplayName(m.name),
+      command: version ? m.installVersionCommand(name, version) : m.installCommand(name),
+      action: () => {
+        popOverlay(pops);
+        if (version) runInstallVersion(m.name, name, version);
+        else doInstall(m.name, name);
+      },
+    }));
+    pushOverlay({
+      kind: "confirm",
+      message: version
+        ? t("confirm.install_version", { name, version })
+        : t("confirm.install", { name }),
+      options,
+      onCancel: () => popOverlay(),
+    });
+  }
+
+  /** 搜索界面安装（i/Enter）：确认框压在搜索页上，确认后留在搜索页。 */
+  function searchInstall(repName: string, name: string) {
+    const st = reg.states.get(repName);
+    if (!st) {
+      showToast(t("notify.unknown_manager", { name: repName }), "error");
+      return;
+    }
+    confirmSearchInstall(st.instance, name, undefined, 1);
   }
 
   /** 执行安装特定版本。 */
@@ -515,12 +565,22 @@ export function App() {
     reloadManagers([managerName]);
   }
 
+  /** 重试一条失败的命令输出条目：以原命令重新执行（elevate=true 时提权）。
+   *  executable 与管理器 name 一致，结束后刷新对应管理器的已安装列表。
+   *  由"命令输出"界面（r 普通重试 / a 管理员重试）经 onRetry 回调触发。 */
+  async function retryCommand(executable: string, args: string[], elevate: boolean) {
+    // 执行状态由底栏 TaskStatus 呈现（opLog 跟踪），失败明细按 o 查看
+    const run = elevate ? runCommandElevated : runCommand;
+    await run(executable, args, { log: true }).catch(() => undefined);
+    reloadManagers([executable]);
+  }
+
   // ------------------------------------------------------------------
   // 键盘分发（主界面）
   // ------------------------------------------------------------------
   useKeyboard((key) => {
-    // 有 overlay 时主界面不处理（overlay 自带 useKeyboard）
-    if (overlay !== null) return;
+    // 有 overlay 时主界面不处理（overlay 栈顶层自带 useKeyboard）
+    if (overlays.length > 0) return;
 
     const kb = reg.keybindings;
 
@@ -680,23 +740,23 @@ export function App() {
     exitFilterMode(); // 交出焦点，避免 overlay 打开后底层过滤框仍在吃按键
     // managers 冻结进 overlay state：身份跨渲染稳定，SearchScreen 的
     // useMemo（deps [managers, ...]）才能真的缓存
-    setOverlay({ kind: "search", managers });
+    pushOverlay({ kind: "search", managers });
   }
 
   function openSettings() {
     exitFilterMode();
-    setOverlay({ kind: "settings" });
+    pushOverlay({ kind: "settings" });
   }
 
   function openOutput() {
     exitFilterMode();
     // 查看输出=已知晓执行结果：清除底栏终态显示与"查看输出"高亮
     setTaskClearToken((n) => n + 1);
-    setOverlay({ kind: "output" });
+    pushOverlay({ kind: "output" });
   }
 
   function onSettingsClosed(result: SettingsResult | null) {
-    setOverlay(null);
+    popOverlay();
     if (result === null) return;
 
     // --- 语言 ---
@@ -846,64 +906,82 @@ export function App() {
         </box>
       ) : null}
 
-      {/* overlay */}
-      {overlay?.kind === "confirm" ? (
-        <ConfirmDialog
-          message={overlay.message}
-          commands={overlay.commands}
-          onConfirm={overlay.onConfirm}
-          onCancel={overlay.onCancel}
-        />
-      ) : null}
-      {overlay?.kind === "search" ? (
-        <SearchScreen
-          managers={overlay.managers}
-          managerIcon={managerIconCb}
-          managerName={managerNameCb}
-          onClose={() => setOverlay(null)}
-          onView={(mgr, name, title) =>
-            setOverlay({
-              kind: "detail",
-              manager: mgr,
-              name,
-              managerName: null,
-              title: title || name,
-            })
-          }
-          onInstall={(mgrName, name) => {
-            setOverlay(null);
-            doInstall(mgrName, name);
-          }}
-        />
-      ) : null}
-      {overlay?.kind === "detail" ? (
-        <DetailScreen
-          manager={overlay.manager}
-          name={overlay.name}
-          managerName={overlay.managerName}
-          title={overlay.title}
-          onClose={() => setOverlay(null)}
-          onUpdate={(mn, n) => detailUpdate(mn, n)}
-          onUninstall={(mn, n) => detailUninstall(mn, n)}
-          onInstallVersion={(version) => {
-            // managerName 为 null(搜索打开)时取 manager.name
-            detailInstallVersion(
-              overlay.managerName ?? overlay.manager.name,
-              overlay.name,
-              version,
-            );
-          }}
-          onToast={(m, sev) => showToast(m, sev)}
-        />
-      ) : null}
-      {overlay?.kind === "settings" ? (
-        <SettingsScreen
-          reg={reg}
-          onClose={onSettingsClosed}
-          onToast={(m, sev) => showToast(m, sev)}
-        />
-      ) : null}
-      {overlay?.kind === "output" ? <OutputScreen onClose={() => setOverlay(null)} /> : null}
+      {/* overlay 栈：依次叠放，仅顶层接收按键（下层组件经 active prop 门控） */}
+      {overlays.map((o, i) => {
+        const active = i === overlays.length - 1;
+        if (o.kind === "confirm")
+          return (
+            <ConfirmDialog
+              key={i}
+              message={o.message}
+              commands={o.commands}
+              options={o.options}
+              onConfirm={o.onConfirm}
+              onCancel={o.onCancel}
+            />
+          );
+        if (o.kind === "search")
+          return (
+            <SearchScreen
+              key={i}
+              managers={o.managers}
+              managerIcon={managerIconCb}
+              managerName={managerNameCb}
+              active={active}
+              onClose={() => popOverlay()}
+              onView={(mgr, name, title) =>
+                pushOverlay({
+                  kind: "detail",
+                  manager: mgr,
+                  name,
+                  managerName: null,
+                  title: title || name,
+                })
+              }
+              onInstall={(mgrName, name) => searchInstall(mgrName, name)}
+              // o 查看输出：与主界面一致，推入 output overlay 压在搜索页上
+              onViewOutput={openOutput}
+            />
+          );
+        if (o.kind === "detail")
+          return (
+            <DetailScreen
+              key={i}
+              manager={o.manager}
+              name={o.name}
+              managerName={o.managerName}
+              title={o.title}
+              active={active}
+              onClose={() => popOverlay()}
+              onUpdate={(mn, n) => detailUpdate(mn, n)}
+              onUninstall={(mn, n) => detailUninstall(mn, n)}
+              // 安装按钮只出现在搜索来源（managerName=null）的详情里：
+              // 确认框压在详情上（pops=2），合并 registry 时按钮=各管理器
+              onInstall={() => confirmSearchInstall(o.manager, o.name, undefined, 2)}
+              onInstallVersion={(version) => {
+                if (o.managerName) detailInstallVersion(o.managerName, o.name, version);
+                else confirmSearchInstall(o.manager, o.name, version, 2);
+              }}
+              onToast={(m, sev) => showToast(m, sev)}
+            />
+          );
+        if (o.kind === "settings")
+          return (
+            <SettingsScreen
+              key={i}
+              reg={reg}
+              onClose={onSettingsClosed}
+              onToast={(m, sev) => showToast(m, sev)}
+            />
+          );
+        return (
+          <OutputScreen
+            key={i}
+            onClose={() => popOverlay()}
+            onRetry={(executable, args, elevate) => retryCommand(executable, args, elevate)}
+          />
+        );
+      })}
     </box>
   );
 }

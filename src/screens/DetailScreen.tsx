@@ -2,7 +2,8 @@
  * 包详情展示界面。
  *
  * 展示单个包的完整元数据。打开后立刻渲染加载态,后台 worker 调用管理器的
- * view 拉取详情;数据到达后填充正文。已安装视图打开时附带更新/删除按钮。
+ * view 拉取详情;数据到达后填充正文。已安装视图打开时附带更新/删除/安装版本
+ * 按钮;搜索视图打开时附带安装(默认聚焦,装最新版)/安装版本按钮。
  * 对应原 Python 项目的 screens/detail_screen.py。
  */
 
@@ -26,8 +27,12 @@ export interface DetailScreenProps {
   onClose: () => void;
   onUpdate: (managerName: string, name: string) => void;
   onUninstall: (managerName: string, name: string) => void;
+  /** 安装最新版（仅搜索视图显示该按钮） */
+  onInstall: () => void;
   onInstallVersion: (version: string) => void;
   onToast: (message: string, severity: "info" | "warn" | "error") => void;
+  /** false=被上层 overlay（确认框/管理器选择器）压住：不响应按键 */
+  active?: boolean;
 }
 
 interface LoadState {
@@ -39,6 +44,9 @@ interface LoadState {
 /** 详情框内容区可用宽度:框宽 80 - 内边距 2 - 标签列 14 = 64 列 */
 const VALUE_WIDTH = 64;
 
+/** 底部按钮种类：install=安装最新版，version=安装指定版本（打开版本选择器） */
+type DetailButton = "update" | "delete" | "install" | "version" | "close";
+
 export function DetailScreen(props: DetailScreenProps) {
   const {
     manager,
@@ -48,22 +56,23 @@ export function DetailScreen(props: DetailScreenProps) {
     onClose,
     onUpdate,
     onUninstall,
+    onInstall,
     onInstallVersion,
     onToast,
+    active = true,
   } = props;
   const [state, setState] = useState<LoadState>({ status: "loading", detail: null, error: "" });
-  const [focus, setFocus] = useState<"update" | "delete" | "install" | "close">(
-    managerName ? "update" : "close",
-  );
+  const [focus, setFocus] = useState<DetailButton>(managerName ? "update" : "install");
   const [showVersionPicker, setShowVersionPicker] = useState(false);
   const { height } = useTerminalDimensions();
   // 固定整体高度:加载/加载完成高度一致,按钮位置不跳动
   const boxHeight = Math.max(10, Math.floor(height * 0.8));
 
-  // 按钮顺序:已安装视图为 [update, delete, install, close],否则 [install, close]
-  const buttons = managerName
-    ? (["update", "delete", "install", "close"] as const)
-    : (["install", "close"] as const);
+  // 按钮顺序:已安装视图为 [update, delete, version, close],
+  // 搜索视图为 [install(默认聚焦,装最新版), version, close]
+  const buttons: readonly DetailButton[] = managerName
+    ? ["update", "delete", "version", "close"]
+    : ["install", "version", "close"];
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +93,8 @@ export function DetailScreen(props: DetailScreenProps) {
   }, []);
 
   useKeyboard((key) => {
+    // 被上层 overlay（确认框/管理器选择器）压住时不响应按键
+    if (!active) return;
     if (showVersionPicker) {
       // 版本选择器自己处理按键,这里只负责关闭
       if (key.name === "escape") {
@@ -98,11 +109,11 @@ export function DetailScreen(props: DetailScreenProps) {
       return;
     }
     if (key.name === "left" || key.name === "right") {
-      const idx = buttons.indexOf(focus as any);
+      const idx = buttons.indexOf(focus);
       if (idx < 0) return;
       const delta = key.name === "left" ? -1 : 1;
       const next = buttons[(idx + delta + buttons.length) % buttons.length];
-      setFocus(next as any);
+      setFocus(next);
       key.preventDefault();
     } else if (key.name === "return" || key.name === "tab") {
       activate(focus);
@@ -110,7 +121,7 @@ export function DetailScreen(props: DetailScreenProps) {
     }
   });
 
-  function activate(btn: "update" | "delete" | "install" | "close") {
+  function activate(btn: DetailButton) {
     if (btn === "close") {
       onClose();
     } else if (managerName && btn === "update") {
@@ -118,6 +129,8 @@ export function DetailScreen(props: DetailScreenProps) {
     } else if (managerName && btn === "delete") {
       onUninstall(managerName, name);
     } else if (btn === "install") {
+      onInstall();
+    } else if (btn === "version") {
       setShowVersionPicker(true);
     }
   }
@@ -152,18 +165,15 @@ export function DetailScreen(props: DetailScreenProps) {
                 : b === "delete"
                   ? t("button.delete")
                   : b === "install"
-                    ? t("button.install_version")
-                    : t("button.close");
+                    ? t("button.install")
+                    : b === "version"
+                      ? t("button.install_version")
+                      : t("button.close");
             const isFocus = focus === b;
             const bg = isFocus ? "#264f78" : "#333";
             const fg = b === "delete" ? (isFocus ? "#fff" : "#f88") : "#fff";
             return (
-              <text
-                key={b}
-                fg={fg}
-                bg={bg}
-                onMouseDown={() => activate(b as any)}
-              >{` ${label} `}</text>
+              <text key={b} fg={fg} bg={bg} onMouseDown={() => activate(b)}>{` ${label} `}</text>
             );
           })}
         </box>

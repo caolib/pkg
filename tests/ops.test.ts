@@ -137,6 +137,41 @@ test("OpLog: clear() 清空", () => {
   check(log.entries.length === 0, "clear 后无条目");
 });
 
+test("OpLog: cancel() 终止运行中条目（kill 回调 + 状态推进 + 幂等）", () => {
+  const log = new OpLog();
+  const e = log.begin("npm install -g foo");
+  let killed = 0;
+  log.setCancel(e, () => {
+    killed++;
+  });
+  check(e.status === "running", "终止前状态为 running");
+  // 运行中：cancel 调注入的 kill 回调,推进状态,写说明行,清空 cancel 引用
+  log.cancel(e);
+  check(killed === 1, "cancel 调用注入的 kill 回调（kill 子进程）");
+  check(e.status === "cancelled", "状态推进为 cancelled");
+  check(e.finishedAt !== null, "记录结束时间");
+  check(e.exitCode === null, "终止无退出码");
+  const lines = linesOf(log, e.id);
+  check(lines.some((l) => l.includes("终止") || l.includes("terminated")), "写入终止说明行");
+  // 幂等：再次 cancel 不重复 kill、不改状态
+  log.cancel(e);
+  check(killed === 1, "重复 cancel 不再次 kill（幂等）");
+  check(e.status === "cancelled", "重复 cancel 状态不变（幂等）");
+  check(e.cancel === undefined, "cancel 后注入回调被清空");
+});
+
+test("OpLog: cancel() 对已结束条目无操作", () => {
+  const log = new OpLog();
+  const e = log.begin("x");
+  log.finish(e, 0);
+  let killed = 0;
+  log.setCancel(e, () => killed++); // setCancel 对非 running 不注入
+  check(e.cancel === undefined, "setCancel 对已结束条目不注入回调");
+  log.cancel(e);
+  check(killed === 0, "已结束条目 cancel 无 kill");
+  check(e.status === "success", "已结束条目状态不变");
+});
+
 test("runCommand: { log: true } 记录成功输出", async () => {
   opLog.clear();
   const res = await runCommand("cmd", ["/c", "echo", "hello-oplog"], { log: true });
@@ -177,4 +212,28 @@ test("runCommand: 不传 { log: true } 不产生条目", async () => {
   opLog.clear();
   await runCommand("cmd", ["/c", "echo", "x"]);
   check(opLog.entries.length === 0, "查询类命令默认不记录");
+});
+
+test("OpLog: begin(title, meta) 将 executable/args 存入条目", () => {
+  const log = new OpLog();
+  const e = log.begin("npm install -g foo", { executable: "npm", args: ["install", "-g", "foo"] });
+  check(e.executable === "npm", "executable 存入条目");
+  check(
+    Array.isArray(e.args) && e.args.length === 3 && e.args[0] === "install",
+    "args 存入条目且顺序正确",
+  );
+  // 不传 meta 时字段为 undefined（兼容旧调用）
+  const e2 = log.begin("plain title");
+  check(e2.executable === undefined && e2.args === undefined, "无 meta 时字段为 undefined");
+});
+
+test("runCommand: { log: true } 将 executable/args 结构存入条目（供重试读取）", async () => {
+  opLog.clear();
+  await runCommand("cmd", ["/c", "echo", "hello-retry"], { log: true });
+  const e = opLog.latest();
+  check(e !== null && e.executable === "cmd", "结构化 executable 存入条目");
+  check(
+    e !== null && Array.isArray(e.args) && e.args.length === 3 && e.args[1] === "echo",
+    "结构化 args 存入条目",
+  );
 });

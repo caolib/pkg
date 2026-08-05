@@ -9,6 +9,8 @@
  * 本模块不依赖 @opentui 与 react，可独立测试（tests/ops.test.ts）。
  */
 
+import { t } from "./i18n";
+
 export type OpLogStream = "out" | "err" | "info";
 
 export interface OpLogLine {
@@ -16,7 +18,7 @@ export interface OpLogLine {
   text: string;
 }
 
-export type OpStatus = "running" | "success" | "failed";
+export type OpStatus = "running" | "success" | "failed" | "cancelled";
 
 /** 一条命令执行记录。 */
 export interface OpLogEntry {
@@ -29,6 +31,16 @@ export interface OpLogEntry {
   exitCode: number | null;
   startedAt: number;
   finishedAt: number | null;
+  /** 可执行文件名（如 "npm"），由 _cli.runCommand 在 log:true 时注入。
+   *  供"命令输出"界面失败后重试/提权重试用；纯查询类不注入。 */
+  executable?: string;
+  /** 命令参数数组（如 ["install","-g","foo"]），由 _cli.runCommand 注入。
+   *  与 executable 配套用于重试。 */
+  args?: string[];
+  /** 终止该命令子进程的回调（由 _cli.runCommand 注入）。运行中时可被
+   *  cancel() 调用;调用后置空,防重复终止。只读 UI 不应直接调用此字段,
+   *  统一经 opLog.cancel() 以确保状态一致。 */
+  cancel?: () => void;
 }
 
 /** 最多保留的条目数（超出丢弃最旧的） */
@@ -74,8 +86,11 @@ export class OpLog {
     this.notify();
   }
 
-  /** 开始一条命令执行记录，返回条目（新条目在最前）。 */
-  begin(title: string): OpLogEntry {
+  /** 开始一条命令执行记录，返回条目（新条目在最前）。
+   *  meta 可携带 executable/args 结构化信息（由 _cli.runCommand 在
+   *  log:true 时注入），供"命令输出"界面失败后重试/提权重试直接读取，
+   *  而不必反解析 title。meta 可选以兼容测试中 `begin("x")` 调用。 */
+  begin(title: string, meta?: { executable?: string; args?: string[] }): OpLogEntry {
     const entry: OpLogEntry = {
       id: this.nextId++,
       title,
@@ -84,6 +99,8 @@ export class OpLog {
       exitCode: null,
       startedAt: Date.now(),
       finishedAt: null,
+      executable: meta?.executable,
+      args: meta?.args,
     };
     this.entries.unshift(entry);
     if (this.entries.length > MAX_ENTRIES) this.entries.pop();
@@ -134,6 +151,32 @@ export class OpLog {
   /** 最近一条（最新），无记录返回 null。 */
   latest(): OpLogEntry | null {
     return this.entries[0] ?? null;
+  }
+
+  /** 由 _cli.runCommand 在 spawn 后注入终止回调（kill 子进程）。 */
+  setCancel(entry: OpLogEntry, fn: () => void): void {
+    if (entry.status !== "running") return;
+    entry.cancel = fn;
+  }
+
+  /** 用户终止运行中的任务：kill 子进程,标记 cancelled,写一行说明并通知。
+   *  非运行中条目无操作（幂等）。子进程的 kill 由注入的 cancel 回调执行,
+   *  这里的职责是状态机推进——_cli.runCommand 检测到 status 不再是 running
+   *  后会抛 ManagerError(terminated),由上层 doUpdateAll 等的 catch 记为失败。 */
+  cancel(entry: OpLogEntry): void {
+    if (entry.status !== "running") return;
+    try {
+      entry.cancel?.();
+    } catch {
+      // ignore: kill 失败不阻塞状态推进
+    }
+    entry.cancel = undefined;
+    this.flushPending(entry);
+    entry.exitCode = null;
+    entry.status = "cancelled";
+    entry.finishedAt = Date.now();
+    this.pushLine(entry, "info", t("output.cancelled_by_user"));
+    this.notify();
   }
 
   // ------------------------------------------------------------------

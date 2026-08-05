@@ -14,6 +14,9 @@
 
 import { t } from "../i18n";
 import { opLog } from "../ops";
+import { tmpdir } from "os";
+import { join } from "path";
+import { unlink } from "fs/promises";
 
 export class ManagerError extends Error {}
 
@@ -78,7 +81,8 @@ export async function runCommand(
   args: string[],
   opts?: RunOptions,
 ): Promise<RunResult> {
-  const entry = opts?.log ? opLog.begin(`${executable} ${args.join(" ")}`) : null;
+  const title = `${executable} ${args.join(" ")}`;
+  const entry = opts?.log ? opLog.begin(title, { executable, args }) : null;
 
   const resolved = await resolveExecutable(executable, args);
   if (resolved === null) {
@@ -91,6 +95,17 @@ export async function runCommand(
     stdout: "pipe",
     stderr: "pipe",
   });
+  // 注入终止回调：用户在"命令输出"界面按 p 终止时,opLog.cancel 会调它
+  // kill 子进程。kill 失败 try/catch 兜底;后续状态推进由 opLog.cancel 负责。
+  if (entry) {
+    opLog.setCancel(entry, () => {
+      try {
+        proc.kill();
+      } catch {
+        // ignore
+      }
+    });
+  }
 
   // 超时兜底：卡死的子进程（如等交互输入的旧版 winget）不再永久挂起。
   // Windows 上经 cmd /c 包装的子进程 kill 只杀 cmd，实际 exe 可能残留——
@@ -160,8 +175,127 @@ export async function runCommand(
     throw new ManagerError(msg);
   }
 
+  // 用户终止：opLog.cancel 已 kill 子进程并把 entry 标记为 cancelled,
+  // proc.exited 随即 resolve（exitCode 可能为 null）。此时不写结果——
+  // 抛 ManagerError 让上层（doUpdateAll 等）的 catch 统一记为失败；
+  // opLog 状态已由 cancel 推进,下方 finish 因 status 非 running 直接跳过。
+  if (entry && entry.status === "cancelled") {
+    throw new ManagerError(t("error.terminated", { cmd: entry.title }));
+  }
+
   if (entry) opLog.finish(entry, exitCode);
   return { stdout, stderr, exitCode };
+}
+
+/**
+ * 以管理员权限重新执行一个命令（Windows UAC 提权）。
+ *
+ * PowerShell 的 `Start-Process -Verb RunAs` 不允许 -RedirectStandardOutput
+ * 与 -Verb 同用，故经内部 `cmd /c "<exe> <args> > out.tmp 2> err.tmp"`
+ * 把提权子进程的 stdout/stderr 重定向到临时文件，结束后读回写入 opLog，
+ * 令用户仍能在"命令输出"界面看到提权执行的完整输出。
+ *
+ * UAC 被用户拒绝或 spawn 失败时记一行失败说明并标记 failed（不二次弹窗）。
+ * 非 win32 平台回退到普通 runCommand。临时文件读回后尽力删除（失败忽略）。
+ *
+ * 安全性：PS 脚本中的 -ArgumentList 用单引号字面量注入（`'` 转义为 `''`），
+ * 不经 shell 拼接用户裸输入；executable/args 为受限标识符（包名/标志），实际
+ * 不含空格与特殊字符，转义仅作防御。setCancel 注入的回调杀的是 PS 宿主进程
+ * ——提权子进程可能残留，属尽力而为（同现有注释约定）。
+ */
+export async function runCommandElevated(
+  executable: string,
+  args: string[],
+  opts?: RunOptions,
+): Promise<RunResult> {
+  // 非 win32：提权概念不适用，回退普通执行
+  if (process.platform !== "win32") {
+    return runCommand(executable, args, opts);
+  }
+
+  const title = `${executable} ${args.join(" ")}`;
+  const adminTitle = `${t("output.admin_prefix")}${title}`;
+  const entry = opts?.log ? opLog.begin(adminTitle, { executable, args }) : null;
+
+  // 唯一临时文件路径（含 entry id 防并发重试碰撞）
+  const base = `pkg-tui-elev-${entry ? entry.id : process.pid}-${Date.now()}`;
+  const outPath = join(tmpdir(), `${base}.out`);
+  const errPath = join(tmpdir(), `${base}.err`);
+
+  // PS 单引号转义：把任意字符串安全注入 PS 单引号字面量
+  const psq = (s: string) => `'${s.replace(/'/g, "''")}'`;
+  // cmd /c 内部命令行：重定向目标用双引号包裹（处理含空格的临时目录）
+  const innerLine = `${[executable, ...args].join(" ")} > "${outPath}" 2> "${errPath}"`;
+  // PS 脚本：经 Start-Process -Verb RunAs 提权运行 cmd，等待结束并回传退出码
+  const script =
+    `try { ` +
+    `$p = Start-Process -FilePath cmd -ArgumentList ${psq(`/c ${innerLine}`)} -Verb RunAs -Wait -PassThru -WindowStyle Hidden; ` +
+    `Write-Output $p.ExitCode ` +
+    `} catch { Write-Output $_.Exception.Message }`;
+
+  let exitCode = 1;
+  let outContent = "";
+  let errContent = "";
+  try {
+    const proc = Bun.spawn(["powershell", "-NoProfile", "-Command", script], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    if (entry) {
+      opLog.setCancel(entry, () => {
+        try {
+          proc.kill();
+        } catch {
+          // ignore
+        }
+      });
+    }
+    const psOut = await new Response(proc.stdout).text();
+    const code = await proc.exited;
+    // PS 成功执行：stdout 为退出码数字；PS 自身失败时 code≠0
+    if (code === 0) {
+      const parsed = Number.parseInt(psOut.trim(), 10);
+      exitCode = Number.isNaN(parsed) ? 1 : parsed;
+    } else {
+      // PS 脚本异常（如 UAC 被拒绝导致 Start-Process 抛错）
+      exitCode = 1;
+      if (entry) opLog.appendText(entry, "err", psOut.trim() || t("output.elevation_failed"));
+    }
+
+    // 读回提权子进程的输出到 opLog，同时作为返回值
+    try {
+      outContent = await Bun.file(outPath).text();
+      if (entry && outContent) opLog.appendText(entry, "out", outContent);
+    } catch {
+      // 输出文件读取失败忽略（提权可能未产生输出）
+    }
+    try {
+      errContent = await Bun.file(errPath).text();
+      if (entry && errContent) opLog.appendText(entry, "err", errContent);
+    } catch {
+      // ignore
+    }
+  } catch (err) {
+    if (entry) opLog.fail(entry, t("output.elevation_failed"));
+    await cleanupTmp(outPath, errPath);
+    throw err;
+  }
+
+  await cleanupTmp(outPath, errPath);
+
+  if (entry) opLog.finish(entry, exitCode);
+  return { stdout: outContent, stderr: errContent, exitCode };
+}
+
+/** 尽力删除临时文件（失败忽略）。 */
+async function cleanupTmp(...paths: string[]): Promise<void> {
+  for (const p of paths) {
+    try {
+      await unlink(p);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 /** 安全解析 JSON。失败时返回空 dict（适合对象输出）。 */

@@ -29,6 +29,9 @@ import { opLog, type OpLogEntry, type OpStatus } from "../ops";
 
 export interface OutputScreenProps {
   onClose: () => void;
+  /** 失败条目重试/提权重试回调（由 App 注入，负责执行并刷新对应管理器）。
+   *  executable 与管理器 name 一致，App 据此 reloadManagers。 */
+  onRetry?: (executable: string, args: string[], elevate: boolean) => void;
 }
 
 /** 条目列表滚轮每档移动的选择步数（与 PackageTable 的 VSCROLL_STEP 一致） */
@@ -39,11 +42,13 @@ const STATUS_META: Record<OpStatus, { icon: string; fg: string }> = {
   running: { icon: "●", fg: "#fd6" },
   success: { icon: "✓", fg: "#6b6" },
   failed: { icon: "✗", fg: "#f66" },
+  cancelled: { icon: "■", fg: "#f88" },
 };
 
 function statusText(status: OpStatus): string {
   if (status === "running") return t("output.status_running");
   if (status === "success") return t("output.status_ok");
+  if (status === "cancelled") return t("output.status_cancelled");
   return t("output.status_failed");
 }
 
@@ -54,8 +59,17 @@ function elapsedText(entry: OpLogEntry): string {
   return t("output.elapsed", { sec: String(sec) });
 }
 
+/** 从条目解析重试目标：优先结构化 executable/args（_cli.runCommand 注入），
+ *  回退解析 title 以兼容仅 begin 创建、未注入结构的条目（如测试）。 */
+function retryTarget(entry: OpLogEntry): { executable?: string; args?: string[] } {
+  if (entry.executable && entry.args) return { executable: entry.executable, args: entry.args };
+  const parts = entry.title.split(" ");
+  if (parts.length >= 2) return { executable: parts[0], args: parts.slice(1) };
+  return { executable: undefined, args: undefined };
+}
+
 export function OutputScreen(props: OutputScreenProps) {
-  const { onClose } = props;
+  const { onClose, onRetry } = props;
   const renderer = useRenderer();
   const { width } = useTerminalDimensions();
   const [, force] = useState(0);
@@ -107,6 +121,32 @@ export function OutputScreen(props: OutputScreenProps) {
   useKeyboard((key) => {
     if (key.name === "escape") {
       onClose();
+      key.preventDefault();
+      return;
+    }
+    // p 终止当前选中条目的运行中任务：kill 子进程并标记 cancelled。
+    // 非运行中（已结束/已终止）按 p 无操作（opLog.cancel 幂等）。
+    if (key.name === "p") {
+      if (entry && entry.status === "running") opLog.cancel(entry);
+      key.preventDefault();
+      return;
+    }
+    // r 重试失败条目：以原命令普通权限重新执行（结果作为新条目写入 opLog）。
+    // 仅对 failed 条目生效；onRetry 缺省时（未注入）无操作。
+    if (key.name === "r") {
+      if (onRetry && entry && entry.status === "failed") {
+        const { executable, args } = retryTarget(entry);
+        if (executable && args) onRetry(executable, args, false);
+      }
+      key.preventDefault();
+      return;
+    }
+    // a 以管理员身份重试失败条目（仅 win32）：UAC 提权，输出经临时文件捕获回写 opLog。
+    if (key.name === "a") {
+      if (onRetry && entry && entry.status === "failed" && process.platform === "win32") {
+        const { executable, args } = retryTarget(entry);
+        if (executable && args) onRetry(executable, args, true);
+      }
       key.preventDefault();
       return;
     }
@@ -175,7 +215,7 @@ export function OutputScreen(props: OutputScreenProps) {
           <text fg="#888">{t("output.empty")}</text>
         </box>
         <box flexDirection="row" height={1} backgroundColor="#111" paddingLeft={1}>
-          <text fg="#666">{t("output.footer_empty")}</text>
+          <text fg="#666">{t("output.footer_cancel")}</text>
         </box>
       </box>
     );
@@ -183,6 +223,14 @@ export function OutputScreen(props: OutputScreenProps) {
 
   const meta = STATUS_META[entry!.status];
   const listWidth = Math.min(44, Math.max(28, Math.floor(width / 3)));
+
+  // 上下文底栏：随当前条目状态显示可用快捷键
+  let footerHint = "";
+  if (entry!.status === "running") footerHint = t("output.footer_terminate");
+  else if (entry!.status === "failed") {
+    footerHint = t("output.footer_retry");
+    if (process.platform === "win32") footerHint += `  ${t("output.footer_admin")}`;
+  }
 
   return (
     <box
@@ -257,14 +305,14 @@ export function OutputScreen(props: OutputScreenProps) {
               trackOptions: { backgroundColor: "transparent", foregroundColor: "#666" },
             }}
           >
-            <text fg="#6cf" attributes={TextAttributes.BOLD} wrapMode="none">
+            <text fg="#6cf" attributes={TextAttributes.BOLD} wrapMode="word">
               {`$ ${entry!.title}`}
             </text>
             {entry!.lines.map((line, i) => (
               <text
                 key={i}
                 fg={line.stream === "err" ? "#f88" : line.stream === "info" ? "#fd6" : "#ddd"}
-                wrapMode="none"
+                wrapMode="word"
               >
                 {line.text}
               </text>
@@ -272,11 +320,11 @@ export function OutputScreen(props: OutputScreenProps) {
           </scrollbox>
         </box>
       </box>
-      <box flexDirection="row" height={1} backgroundColor="#111" paddingLeft={1}>
-        <text fg="#666">
-          {entries.length > 1 ? t("output.footer_multi") : t("output.footer_single")}
-        </text>
-      </box>
+      {footerHint ? (
+        <box flexDirection="row" height={1} backgroundColor="#111" paddingLeft={1}>
+          <text fg="#666">{footerHint}</text>
+        </box>
+      ) : null}
     </box>
   );
 }
