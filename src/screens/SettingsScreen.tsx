@@ -41,7 +41,7 @@ export interface SettingsScreenProps {
 }
 
 /** 一行设置项。 */
-type Row = { kind: "mgr"; name: string } | { kind: "lang" } | { kind: "autocheck" };
+type Row = { kind: "mgr"; name: string } | { kind: "lang" } | { kind: "autocheck" } | { kind: "mergenpm" };
 
 function statusLabel(reg: ManagerRegistry, name: string): string {
   const st = reg.states.get(name);
@@ -75,11 +75,12 @@ export function SettingsScreen(props: SettingsScreenProps) {
   /** 光标驱动的滚动窗口起点(同 PackageTable:行溢出时滚轮/键盘让光标行可见) */
   const windowStartRef = useRef(0);
 
-  // 行序列:各管理器 + 语言 + 自动检查更新
+  // 行序列:各管理器 + 语言 + 自动检查更新 + 合并 npm 系
   const rows: Row[] = [
     ...reg.names.map((n): Row => ({ kind: "mgr", name: n })),
     { kind: "lang" },
     { kind: "autocheck" },
+    { kind: "mergenpm" },
   ];
 
   // 行区可见高度:模态框 maxHeight=85%,行区盒子给显式 height(显式高度
@@ -146,6 +147,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
     if (row.kind === "mgr") toggleManager(row.name);
     else if (row.kind === "lang") toggleLanguage();
     else if (row.kind === "autocheck") toggleAutoCheck();
+    else if (row.kind === "mergenpm") toggleMergeNpm();
   }
 
   function toggleManager(name: string) {
@@ -168,6 +170,11 @@ export function SettingsScreen(props: SettingsScreenProps) {
 
   function toggleAutoCheck() {
     reg.autoCheckUpdates = !reg.autoCheckUpdates;
+    rerender();
+  }
+
+  function toggleMergeNpm() {
+    reg.mergeNpmManagers = !reg.mergeNpmManagers;
     rerender();
   }
 
@@ -260,16 +267,29 @@ export function SettingsScreen(props: SettingsScreenProps) {
                 </box>
               );
             }
-            // autocheck
+            if (row.kind === "autocheck") {
+              return (
+                <box key="autocheck" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
+                  <text width={22} fg="#888">
+                    {t("settings.auto_check_updates")}
+                  </text>
+                  <text width={10} fg={reg.autoCheckUpdates ? "#8f8" : "#888"}>
+                    {reg.autoCheckUpdates ? t("settings.on") : t("settings.off")}
+                  </text>
+                  <text fg="#888">{t("settings.auto_check_hint")}</text>
+                </box>
+              );
+            }
+            // mergenpm
             return (
-              <box key="autocheck" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
+              <box key="mergenpm" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
                 <text width={22} fg="#888">
-                  {t("settings.auto_check_updates")}
+                  {t("settings.merge_npm")}
                 </text>
-                <text width={10} fg={reg.autoCheckUpdates ? "#8f8" : "#888"}>
-                  {reg.autoCheckUpdates ? t("settings.on") : t("settings.off")}
+                <text width={10} fg={reg.mergeNpmManagers ? "#8f8" : "#888"}>
+                  {reg.mergeNpmManagers ? t("settings.on") : t("settings.off")}
                 </text>
-                <text fg="#888">{t("settings.auto_check_hint")}</text>
+                <text fg="#888">{t("settings.merge_npm_hint")}</text>
               </box>
             );
           })}

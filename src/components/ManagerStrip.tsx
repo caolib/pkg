@@ -114,9 +114,12 @@ export function buildStripItems(
     label: (showManagerIcons ? reg.managerIcon(ALL_MANAGERS) : "") + t("button.all"),
     active: current === ALL_MANAGERS,
   });
+  const merged = reg.mergedManagerNames();
   for (const n of reg.names) {
     const st = reg.states.get(n)!;
     if (!st.available || st.disabled) continue;
+    // 合并显示（mergeNpmManagers）时，被并入代表的管理器不出现在顶栏
+    if (merged.has(n)) continue;
     items.push({
       kind: "manager",
       name: n,

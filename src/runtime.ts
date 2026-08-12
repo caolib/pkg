@@ -25,6 +25,7 @@ import {
   getManagerNames,
   getUserManagerChoices,
   getAutoCheckUpdates,
+  getMergeNpmManagers,
   loadConfig,
   saveConfig,
   configExists,
@@ -81,6 +82,8 @@ export class ManagerRegistry {
   managerNames: Record<string, string> = {};
   /** 打开首页时自动检查更新(默认开启,可在设置界面关闭)。 */
   autoCheckUpdates = true;
+  /** 首页合并显示同 registry 的 npm 系管理器(npm/pnpm/bun 合并为 npm,默认关闭)。 */
+  mergeNpmManagers = false;
   config: Config = {};
 
   /** 构造所有已注册管理器的运行时状态。 */
@@ -114,6 +117,7 @@ export class ManagerRegistry {
     this.managerIcons = getManagerIcons(this.config);
     this.managerNames = getManagerNames(this.config);
     this.autoCheckUpdates = getAutoCheckUpdates(this.config);
+    this.mergeNpmManagers = getMergeNpmManagers(this.config);
     const userChoices = getUserManagerChoices(this.config);
     for (const name of this.disabledManagers) {
       const st = this.states.get(name);
@@ -147,6 +151,39 @@ export class ManagerRegistry {
   /** 管理器显示名：优先配置覆盖，否则默认 name。 */
   managerDisplayName(name: string): string {
     return this.managerNames[name] ?? name;
+  }
+
+  /** 合并显示（mergeNpmManagers 开启）时，把被并入代表管理器的成员名映射到代表名。
+   *  同 registry 组（npm/pnpm/bun）归到可用代表（优先 npm，否则第一个可用成员）；
+   *  代表自身与非同组管理器不出现。 */
+  mergedManagerNames(): Map<string, string> {
+    const map = new Map<string, string>();
+    if (!this.mergeNpmManagers) return map;
+    const byRegistry = new Map<string, ManagerState[]>();
+    for (const st of this.states.values()) {
+      if (!st.available || st.disabled || !st.instance.registry) continue;
+      const arr = byRegistry.get(st.instance.registry) ?? [];
+      arr.push(st);
+      byRegistry.set(st.instance.registry, arr);
+    }
+    for (const members of byRegistry.values()) {
+      if (members.length < 2) continue;
+      const rep = members.find((m) => m.name === "npm") ?? members[0]!;
+      for (const m of members) {
+        if (m.name !== rep.name) map.set(m.name, rep.name);
+      }
+    }
+    return map;
+  }
+
+  /** 合并显示开启且 name 被并入代表时返回代表名，否则原样返回。 */
+  displayManagerName(name: string): string {
+    return this.mergedManagerNames().get(name) ?? name;
+  }
+
+  /** 首页表格管理器列的展示名：合并显示时并入代表的管理器统一显示代表名。 */
+  rowManagerDisplayName(name: string): string {
+    return this.managerDisplayName(this.displayManagerName(name));
   }
 
   /** 检测所有管理器可用性。 */
@@ -206,9 +243,24 @@ export class ManagerRegistry {
     } else {
       mgrName = current;
     }
-    const st = this.states.get(mgrName!);
+    let st = this.states.get(mgrName!);
     if (!st) return null;
-    const inInstalled = st.installed.find((p) => p.name === pkgName);
+    let inInstalled = st.installed.find((p) => p.name === pkgName);
+    // 合并显示视图（mergeNpmManagers）下，key 前缀是代表管理器名（npm），
+    // 包可能实际属于被并入的成员（pnpm/bun）——回退到同 registry 可用成员中查找。
+    if (!inInstalled && isAll && this.mergeNpmManagers && st.instance.registry) {
+      for (const other of this.states.values()) {
+        if (other === st) continue;
+        if (!other.available || other.disabled) continue;
+        if (other.instance.registry !== st.instance.registry) continue;
+        const hit = other.installed.find((p) => p.name === pkgName);
+        if (hit) {
+          st = other;
+          inInstalled = hit;
+          break;
+        }
+      }
+    }
     const inOutdated = st.outdated.find((p) => p.name === pkgName);
     const pkg = inInstalled ?? inOutdated;
     if (!pkg) return null;
@@ -261,6 +313,7 @@ export class ManagerRegistry {
       search_keybindings: disk.search_keybindings ?? this.searchKeybindings,
       language: this.config.language || "",
       auto_check_updates: this.autoCheckUpdates,
+      merge_npm_managers: this.mergeNpmManagers,
       manager_icons: { ...this.defaultManagerIcons(), ...this.managerIcons },
       manager_names: { ...this.defaultManagerNames(), ...this.managerNames },
       user_manager_choices: Object.fromEntries(
@@ -298,8 +351,11 @@ export function buildInstalledRows(
   opts: InstalledViewOptions,
 ): InstalledRow[] {
   const managers = reg.activeManagers(opts.current);
+  const merged = opts.isAll ? reg.mergedManagerNames() : null;
   const rows: InstalledRow[] = [];
   for (const st of managers) {
+    // 合并显示时，被并入代表的管理器行归到代表 key 前缀下（key 去重后只保留先出现的行）
+    const keyPrefix = merged?.get(st.name) ?? st.name;
     const loading = !st.loadedInstalled;
     for (const pkg of st.installed) {
       const outdatedInfo = st.outdatedMap.get(pkg.name);
@@ -319,7 +375,7 @@ export function buildInstalledRows(
           continue;
       }
       rows.push({
-        key: opts.isAll ? `${st.name}:${pkg.name}` : pkg.name,
+        key: opts.isAll ? `${keyPrefix}:${pkg.name}` : pkg.name,
         managerName: st.name,
         pkg,
         loading,
@@ -327,6 +383,11 @@ export function buildInstalledRows(
         latestVersion: latestVer,
       });
     }
+  }
+  // 合并显示时同 registry 多源行同 key（代表:包名），保留先出现者（npm 系按注册序 npm 在前）
+  if (merged && merged.size > 0) {
+    const seen = new Set<string>();
+    return rows.filter((r) => (seen.has(r.key) ? false : (seen.add(r.key), true)));
   }
   return rows;
 }

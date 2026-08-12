@@ -135,6 +135,8 @@
   "binding.check_updates": "检查更新",
   "settings.auto_check_updates": "自动检查更新",
   "settings.auto_check_hint": "(打开首页时)",
+  "settings.merge_npm": "合并 npm 系",
+  "settings.merge_npm_hint": "(首页 npm/pnpm/bun 合并显示为 npm)",
   "settings.on": "开",
   "settings.off": "关",
   "button.install": "安装",

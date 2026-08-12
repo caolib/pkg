@@ -299,7 +299,8 @@ export function App() {
           key: "manager",
           label: t("col.manager"),
           width: 12,
-          render: (r) => reg.managerDisplayName(r.managerName),
+          // 合并显示时并入代表的管理器统一显示代表名（npm）
+          render: (r) => reg.rowManagerDisplayName(r.managerName),
         },
       ]
     : [
@@ -330,7 +331,8 @@ export function App() {
     if (name === current) return;
     if (name !== ALL_MANAGERS) {
       const st = reg.states.get(name);
-      if (!st || !st.available || st.disabled) return;
+      // 合并显示时并入代表的管理器没有独立视图，不能切换
+      if (!st || !st.available || st.disabled || reg.mergedManagerNames().has(name)) return;
     }
     setCurrent(name);
     setFilterText("");
@@ -716,12 +718,13 @@ export function App() {
 
   /** 在"全部"+各可用管理器间按方向循环切换（delta=±1）。 */
   function switchManagerRelative(delta: number) {
-    // 可选视图序列：[ALL_MANAGERS, ...可用且未禁用的管理器名]
+    // 可选视图序列：[ALL_MANAGERS, ...可用且未禁用且未被合并的管理器名]
+    const merged = reg.mergedManagerNames();
     const seq = [
       ALL_MANAGERS,
       ...reg.names.filter((n) => {
         const st = reg.states.get(n)!;
-        return st.available && !st.disabled;
+        return st.available && !st.disabled && !merged.has(n);
       }),
     ];
     let idx = seq.indexOf(current);
@@ -763,9 +766,10 @@ export function App() {
     const langChanged = result.language && result.language !== currentLanguage();
     if (langChanged) setLanguage(result.language);
 
-    // --- 当前选中管理器若被禁用，回退到"全部"（先于任何 state 变更判定）---
+    // --- 当前选中管理器若被禁用/被合并进代表，回退到"全部"（先于任何 state 变更判定）---
     const currentDisabled =
-      current !== ALL_MANAGERS && (reg.states.get(current)?.disabled ?? false);
+      current !== ALL_MANAGERS &&
+      ((reg.states.get(current)?.disabled ?? false) || reg.mergedManagerNames().has(current));
 
     // --- 持久化：persist() 会自己从磁盘+内部状态重建配置，这里只需更新语言 ---
     reg.config.language = currentLanguage();

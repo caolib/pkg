@@ -20,6 +20,8 @@ export interface Config {
   manager_names?: Record<string, string>;
   /** 打开首页时自动检查更新(默认 true,可在设置界面关闭)。 */
   auto_check_updates?: boolean;
+  /** 首页合并显示同 registry 的 npm 系管理器(npm/pnpm/bun 合并为 npm,默认关闭)。 */
+  merge_npm_managers?: boolean;
   /** 用户手动切换过启用/禁用的管理器（true=禁用，false=启用）；
    *  未列出的管理器以自动检测结果为准。 */
   user_manager_choices?: Record<string, boolean>;
@@ -175,4 +177,9 @@ export function getUserManagerChoices(config: Config): Record<string, boolean> {
 /** 从配置中提取"打开首页自动检查更新"开关,缺失时默认 true。 */
 export function getAutoCheckUpdates(config: Config): boolean {
   return config.auto_check_updates !== false;
+}
+
+/** 从配置中提取"合并 npm 系管理器"开关,缺失时默认 false。 */
+export function getMergeNpmManagers(config: Config): boolean {
+  return config.merge_npm_managers === true;
 }
