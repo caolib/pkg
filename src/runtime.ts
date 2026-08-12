@@ -71,8 +71,23 @@ export interface InstalledRow {
   latestVersion: string;
 }
 
+/**
+ * 按配置 manager_names 的键顺序重排管理器名列表（就地排序）。
+ * 配置文件里 manager_names 的键顺序即顶栏/视图切换/设置列表的顺序；
+ * 未列出的管理器保持原相对顺序（字母序）附后，未注册的键忽略。
+ */
+export function orderNamesByConfig(names: string[], config: Config): void {
+  const raw = config.manager_names;
+  if (!raw || typeof raw !== "object") return;
+  const rank = new Map(Object.keys(raw).map((n, i) => [n, i]));
+  if (rank.size === 0) return;
+  // sort 稳定：未列出的管理器（秩同为 rank.size）保持构造时的字母序
+  names.sort((a, b) => (rank.get(a) ?? rank.size) - (rank.get(b) ?? rank.size));
+}
+
 export class ManagerRegistry {
   states: Map<string, ManagerState> = new Map();
+  /** 管理器顺序：构造时按 name 字母序；loadPersisted 后按配置 manager_names 键顺序 */
   names: string[] = [];
   disabledManagers: Set<string> = new Set();
   // 构造即用默认值初始化，确保即使 loadPersisted 未完成，快捷键也可用
@@ -111,6 +126,8 @@ export class ManagerRegistry {
   /** 从持久化配置恢复禁用状态、快捷键、图标、语言（返回语言码）。 */
   async loadPersisted(): Promise<string> {
     this.config = await loadConfig();
+    // manager_names 的键顺序即管理器顺序（顶栏/视图切换/设置列表共用 reg.names）
+    orderNamesByConfig(this.names, this.config);
     this.disabledManagers = getDisabledManagers(this.config);
     this.keybindings = getKeybindings(this.config);
     this.searchKeybindings = getSearchKeybindings(this.config);
@@ -298,7 +315,8 @@ export class ManagerRegistry {
    * 这些 UI 可改的字段才用内存值写入。
    *
    * manager_icons / manager_names 合并各管理器默认值写入，用户可直接在文件
-   * 中修改；自定义值覆盖默认值。
+   * 中修改；自定义值覆盖默认值。manager_names 按键顺序即管理器显示顺序，
+   * 写回时按当前 names 顺序输出，用户手动调整的键顺序不会被保存操作打乱。
    */
   async persist(): Promise<void> {
     let disk: Config = {};

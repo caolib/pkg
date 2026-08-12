@@ -83,7 +83,9 @@ src/
 ├── App.tsx                # 主应用：ManagerRegistry 运行时状态、useKeyboard 分发、
 │                          #   overlay 栈（search/detail/confirm）、toast、表格/顶栏/底栏
 ├── runtime.ts             # 领域逻辑层（不依赖渲染）：ManagerRegistry、buildInstalledRows、
-│                          #   buildSearchGroups(registry 去重)、previewCommands、doUpdateAll/doUninstallAll
+│                          #   buildSearchGroups(registry 去重)、previewCommands、doUpdateAll/doUninstallAll、
+│                          #   orderNamesByConfig（config.json 里 manager_names 的键顺序即管理器
+│                          #   显示顺序：顶栏/←→视图切换/设置列表共用 reg.names，loadPersisted 时应用）
 ├── ops.ts                 # 命令执行日志（OpLog 单例）：_cli.runCommand({log:true}) 逐行写入
 │                          #   stdout/stderr，OutputScreen 订阅实时查看（无渲染依赖，可独立测试）
 ├── focus.ts               # isTextInputFocused(renderer)：判断渲染器焦点是否在文本输入框
