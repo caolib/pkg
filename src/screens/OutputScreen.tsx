@@ -75,6 +75,8 @@ export function OutputScreen(props: OutputScreenProps) {
   const [, force] = useState(0);
   const [cursor, setCursor] = useState(0);
   const [hover, setHover] = useState(-1);
+  /** 鼠标悬浮在顶部返回按钮上 */
+  const [backHover, setBackHover] = useState(false);
   const scrollRef = useRef<ScrollBoxRenderable | null>(null);
 
   // 每次渲染即时读取：opLog 是 mutable 单例，订阅后推送重渲染
@@ -191,7 +193,19 @@ export function OutputScreen(props: OutputScreenProps) {
 
   const header = (
     <box flexDirection="row" height={1} paddingLeft={1} alignItems="center">
-      <text fg="#fff" attributes={TextAttributes.BOLD}>
+      {/* 左上角返回按钮（行为同 Esc:关闭界面） */}
+      <text
+        fg="#fff"
+        bg={backHover ? "#264f78" : "#333"}
+        onMouseDown={(event) => {
+          if (event.button !== MouseButton.LEFT) return;
+          event.stopPropagation();
+          onClose();
+        }}
+        onMouseOver={() => setBackHover(true)}
+        onMouseOut={() => setBackHover(false)}
+      >{` ${t("button.back")} `}</text>
+      <text fg="#fff" attributes={TextAttributes.BOLD} marginLeft={1}>
         {t("output.title")}
       </text>
       <text fg="#666">{`   ${t("output.entries_count", { count: String(entries.length) })}`}</text>

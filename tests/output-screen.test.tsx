@@ -12,6 +12,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { act } from "react";
 import { OutputScreen } from "../src/screens/OutputScreen";
 import { opLog } from "../src/ops";
+import { dispWidthStr } from "../src/width";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -343,6 +344,40 @@ test("命令输出界面：未注入 executable/args 时回退解析 title 重�
       retryCalls[0].args.length === 2 && retryCalls[0].args[0] === "install",
       "回退解析 title 得到 args",
     );
+  } finally {
+    opLog.clear();
+    setup.renderer.destroy();
+  }
+});
+
+test("命令输出界面：左上角返回按钮点击关闭", async () => {
+  const check = (cond: boolean, msg: string) => {
+    if (!cond) throw new Error(msg);
+    console.log("  ✓", msg);
+  };
+  opLog.clear();
+  let closed = 0;
+  const setup = await testRender(<OutputScreen onClose={() => closed++} />, {
+    width: 100,
+    height: 24,
+  });
+  try {
+    await setup.renderOnce();
+    await pump(setup);
+    const f = setup.captureCharFrame();
+    const lines = f.split("\n");
+    const headerLine = lines.find((l) => l.includes("返回"));
+    check(headerLine !== undefined, "顶部渲染出返回按钮");
+    if (headerLine) {
+      // 按钮文本是自绘 <text>,点击须落在其显示宽度范围内(CJK 全角占 2 列)
+      const y = lines.indexOf(headerLine);
+      const x = dispWidthStr(headerLine.slice(0, headerLine.indexOf("返回")));
+      await act(async () => {
+        await setup.mockMouse.click(x, y);
+      });
+      await pump(setup);
+      check(closed === 1, "点击返回按钮触发 onClose 关闭界面");
+    }
   } finally {
     opLog.clear();
     setup.renderer.destroy();

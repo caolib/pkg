@@ -46,6 +46,7 @@
   "button.update": "Update",
   "button.delete": "Delete",
   "button.close": "Close",
+  "button.back": "Back",
   "detail.loading": "Loading...",
   "detail.load_failed": "Failed to load details: {exc}",
   "detail.version": "Version",

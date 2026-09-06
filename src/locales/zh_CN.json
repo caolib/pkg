@@ -40,6 +40,7 @@
   "button.update": "更新",
   "button.delete": "删除",
   "button.close": "关闭",
+  "button.back": "返回",
   "detail.loading": "加载中...",
   "detail.load_failed": "详情加载失败: {exc}",
   "detail.version": "版本",
