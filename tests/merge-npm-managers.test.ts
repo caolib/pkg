@@ -81,6 +81,22 @@ test("合并 npm 系:mergedManagerNames 与顶栏/行合并", () => {
   check(foundNpm !== null && foundNpm.state.name === "npm", "npm:a 仍定位到 npm 自身");
 });
 
+test("合并 npm 系:代表视图(npm 按钮)=全组视图,操作能定位到真实管理器", () => {
+  const reg = makeReg(true);
+
+  // 代表视图行:跨源去重(npm 的 a/x + bun 的 b,pnpm 的 a 与 npm 去重),key 无前缀
+  const rows = buildInstalledRows(reg, { ...baseOpts, current: "npm", isAll: false });
+  check(rows.length === 3, `去重后 3 行,实际 ${rows.length}`);
+  check(rows.every((r) => !r.key.includes(":")), `行 key 无管理器前缀,实际 [${rows.map((r) => r.key).join(",")}]`);
+
+  // bun 独有的 b 在 npm 自己的 installed 里找不到,须回退定位到 bun,
+  // 否则详情/更新/卸载报"无法确定包的管理器"
+  const foundB = reg.findSelected("npm", "b");
+  check(foundB !== null && foundB.state.name === "bun", "代表视图下 b 定位到 bun(操作用 bun 执行)");
+  const foundA = reg.findSelected("npm", "a");
+  check(foundA !== null && foundA.state.name === "npm", "代表视图下 a 仍定位到 npm 自身");
+});
+
 test("合并开关关闭(默认):行为不变", () => {
   const reg = makeReg(false);
   check(reg.mergedManagerNames().size === 0, "mergedManagerNames 为空");
@@ -98,4 +114,9 @@ test("合并开关关闭(默认):行为不变", () => {
     rows.some((r) => r.key === "pnpm:a") && rows.some((r) => r.key === "bun:b"),
     "行 key 保留各自管理器前缀",
   );
+
+  // 代表视图退化为普通单管理器视图:只有 npm 自己的行,无去重副作用
+  const repRows = buildInstalledRows(reg, { ...baseOpts, current: "npm", isAll: false });
+  check(repRows.length === 2, `npm 视图 2 行,实际 ${repRows.length}`);
+  check(reg.findSelected("npm", "a") !== null, "npm 视图操作定位正常");
 });

@@ -198,6 +198,21 @@ export class ManagerRegistry {
     return this.mergedManagerNames().get(name) ?? name;
   }
 
+  /** 合并显示时，若 name 是某 registry 组的代表（npm），返回该组全部可用成员
+   *  （代表在前，其余按注册序）；name 不是代表或合并未开启时返回 null。
+   *  用于把代表视图（顶栏 npm 按钮）做成"全组视图"。 */
+  mergedGroupMembers(repName: string): ManagerState[] | null {
+    const merged = this.mergedManagerNames();
+    if (merged.size === 0) return null;
+    const repSt = this.states.get(repName);
+    if (!repSt || !repSt.available || repSt.disabled) return null;
+    const members: ManagerState[] = [];
+    for (const [member, rep] of merged) {
+      if (rep === repName) members.push(this.states.get(member)!);
+    }
+    return members.length > 0 ? [repSt, ...members] : null;
+  }
+
   /** 首页表格管理器列的展示名：合并显示时并入代表的管理器统一显示代表名。 */
   rowManagerDisplayName(name: string): string {
     return this.managerDisplayName(this.displayManagerName(name));
@@ -217,11 +232,14 @@ export class ManagerRegistry {
     }
   }
 
-  /** 当前视图下"活跃"（可用且未禁用）的管理器列表。 */
+  /** 当前视图下"活跃"（可用且未禁用）的管理器列表。
+   *  合并显示时，代表管理器（npm）的视图是全组视图，返回组内全部成员。 */
   activeManagers(current: string): ManagerState[] {
     if (current === ALL_MANAGERS) {
       return [...this.states.values()].filter((s) => s.available && !s.disabled);
     }
+    const group = this.mergedGroupMembers(current);
+    if (group) return group;
     const st = this.states.get(current);
     return st && st.available && !st.disabled ? [st] : [];
   }
@@ -263,9 +281,13 @@ export class ManagerRegistry {
     let st = this.states.get(mgrName!);
     if (!st) return null;
     let inInstalled = st.installed.find((p) => p.name === pkgName);
-    // 合并显示视图（mergeNpmManagers）下，key 前缀是代表管理器名（npm），
-    // 包可能实际属于被并入的成员（pnpm/bun）——回退到同 registry 可用成员中查找。
-    if (!inInstalled && isAll && this.mergeNpmManagers && st.instance.registry) {
+    // 合并显示（mergeNpmManagers）下，"全部"视图的 key 前缀与代表视图（npm 按钮
+    // =全组视图）的行都可能实际属于被并入的成员（pnpm/bun）——回退到同 registry
+    // 可用成员中查找，操作仍用真实管理器执行。
+    const mergedView = isAll
+      ? this.mergeNpmManagers
+      : this.mergedGroupMembers(mgrName!) !== null;
+    if (!inInstalled && mergedView && st.instance.registry) {
       for (const other of this.states.values()) {
         if (other === st) continue;
         if (!other.available || other.disabled) continue;
@@ -369,7 +391,10 @@ export function buildInstalledRows(
   opts: InstalledViewOptions,
 ): InstalledRow[] {
   const managers = reg.activeManagers(opts.current);
-  const merged = opts.isAll ? reg.mergedManagerNames() : null;
+  // 合并映射在"全部"视图与代表视图（npm 按钮=全组视图）下都用于跨源去重；
+  // 前者还把行 key 前缀统一为代表名。普通单管理器视图不合并。
+  const merged =
+    opts.isAll || reg.mergedGroupMembers(opts.current) ? reg.mergedManagerNames() : null;
   const rows: InstalledRow[] = [];
   for (const st of managers) {
     // 合并显示时，被并入代表的管理器行归到代表 key 前缀下（key 去重后只保留先出现的行）

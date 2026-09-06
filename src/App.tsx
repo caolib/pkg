@@ -279,46 +279,55 @@ export function App() {
     if (cursor > rows.length - 1) setCursor(Math.max(0, rows.length - 1));
   }, [rows.length, cursor]);
 
-  const columns: TableColumn<InstalledRow>[] = isAll
-    ? [
-        {
-          key: "name",
-          label: t("col.name"),
-          width: 36,
-          render: (r) => r.pkg.display_name || r.pkg.name,
-        },
-        { key: "version", label: t("col.version"), width: 16, render: (r) => r.pkg.version || "-" },
-        {
-          key: "latest",
-          label: t("col.latest"),
-          width: 16,
-          render: (r) => r.latestVersion || "-",
-          fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
-        },
-        {
-          key: "manager",
-          label: t("col.manager"),
-          width: 12,
-          // 合并显示时并入代表的管理器统一显示代表名（npm）
-          render: (r) => reg.rowManagerDisplayName(r.managerName),
-        },
-      ]
-    : [
-        {
-          key: "name",
-          label: t("col.name"),
-          width: 40,
-          render: (r) => r.pkg.display_name || r.pkg.name,
-        },
-        { key: "version", label: t("col.version"), width: 18, render: (r) => r.pkg.version || "-" },
-        {
-          key: "latest",
-          label: t("col.latest"),
-          width: 18,
-          render: (r) => r.latestVersion || "-",
-          fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
-        },
-      ];
+  // 代表视图（合并 npm 系后顶栏 npm 按钮=全组视图）与"全部"一样是多源行，
+  // 同样显示"管理器"列
+  const repGroupView = !isAll && reg.mergedGroupMembers(current) !== null;
+
+  const columns: TableColumn<InstalledRow>[] =
+    isAll || repGroupView
+      ? [
+          {
+            key: "name",
+            label: t("col.name"),
+            width: 36,
+            render: (r) => r.pkg.display_name || r.pkg.name,
+          },
+          { key: "version", label: t("col.version"), width: 16, render: (r) => r.pkg.version || "-" },
+          {
+            key: "latest",
+            label: t("col.latest"),
+            width: 16,
+            render: (r) => r.latestVersion || "-",
+            fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
+          },
+          {
+            key: "manager",
+            label: t("col.manager"),
+            width: 12,
+            // "全部"视图合并显示时统一显示代表名（npm）；代表视图显示真实
+            // 管理器（npm/pnpm/bun），否则该列没有区分度
+            render: (r) =>
+              isAll
+                ? reg.rowManagerDisplayName(r.managerName)
+                : reg.managerDisplayName(r.managerName),
+          },
+        ]
+      : [
+          {
+            key: "name",
+            label: t("col.name"),
+            width: 40,
+            render: (r) => r.pkg.display_name || r.pkg.name,
+          },
+          { key: "version", label: t("col.version"), width: 18, render: (r) => r.pkg.version || "-" },
+          {
+            key: "latest",
+            label: t("col.latest"),
+            width: 18,
+            render: (r) => r.latestVersion || "-",
+            fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
+          },
+        ];
 
   const stripItems: StripItem[] = buildStripItems(reg, current, width >= 100);
 
