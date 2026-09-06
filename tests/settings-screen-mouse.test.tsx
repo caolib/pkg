@@ -10,6 +10,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { act } from "react";
 import { SettingsScreen } from "../src/screens/SettingsScreen";
 import { ManagerRegistry } from "../src/runtime";
+import { dispWidthStr } from "../src/width";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -81,6 +82,50 @@ test("设置界面鼠标交互(点击行/滚轮滚动)", async () => {
     }
     const frameTop = setup.captureCharFrame();
     check(frameTop.includes("bun"), "滚轮向上滚动后窗口回到顶部");
+  } finally {
+    await act(async () => {
+      setup.renderer.destroy();
+    });
+  }
+});
+
+test("设置界面右下角关闭按钮:点击关闭并回传结果", async () => {
+  const check = (cond: boolean, msg: string) => {
+    if (!cond) throw new Error(msg);
+    console.log("  ✓", msg);
+  };
+
+  const reg = new ManagerRegistry();
+  let closed: string | null = null;
+
+  const setup = await testRender(
+    <SettingsScreen
+      reg={reg}
+      onClose={(r) => {
+        closed = r === null ? "cancel" : "done";
+      }}
+      onToast={() => {}}
+    />,
+    { width: 80, height: 20 },
+  );
+
+  try {
+    await setup.renderOnce();
+    await pump(setup);
+    const frame = setup.captureCharFrame();
+    const lines = frame.split("\n");
+    const footerLine = lines.find((l) => l.includes("关闭"));
+    check(footerLine !== undefined, "底栏渲染出关闭按钮");
+    if (footerLine) {
+      // 按钮文本是自绘 <text>,点击须落在其显示宽度范围内(CJK 全角占 2 列)
+      const y = lines.indexOf(footerLine);
+      const x = dispWidthStr(footerLine.slice(0, footerLine.indexOf("关闭")));
+      await act(async () => {
+        await setup.mockMouse.click(x, y);
+      });
+      await pump(setup);
+      check(closed === "done", "点击关闭按钮关闭界面并回传结果");
+    }
   } finally {
     await act(async () => {
       setup.renderer.destroy();

@@ -72,6 +72,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
   const [lang, setLang] = useState(currentLanguage());
   /** 鼠标悬浮的行索引(-1=无) */
   const [hover, setHover] = useState(-1);
+  /** 鼠标悬浮在右下角关闭按钮上 */
+  const [closeHover, setCloseHover] = useState(false);
   /** 光标驱动的滚动窗口起点(同 PackageTable:行溢出时滚轮/键盘让光标行可见) */
   const windowStartRef = useRef(0);
 
@@ -301,9 +303,21 @@ export function SettingsScreen(props: SettingsScreenProps) {
           <text fg="#ddd">{configPath()}</text>
         </box>
 
-        {/* 底部提示 */}
+        {/* 底部提示 + 右下角关闭按钮(行为同 Esc:关闭并回传变更) */}
         <box flexDirection="row" marginTop={1}>
           <text fg="#666">{"Enter/Space 切换  a 检查"}</text>
+          <box flexGrow={1} />
+          <text
+            fg="#fff"
+            bg={closeHover ? "#264f78" : "#333"}
+            onMouseDown={(event) => {
+              if (event.button !== MouseButton.LEFT) return;
+              event.stopPropagation();
+              finish();
+            }}
+            onMouseOver={() => setCloseHover(true)}
+            onMouseOut={() => setCloseHover(false)}
+          >{` ${t("button.close")} `}</text>
         </box>
       </box>
     </ModalBackdrop>
