@@ -71,6 +71,24 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      # OIDC trusted publishing 需要 npm >= 11.5.1（Node 22 自带的 npm 10 不支持，
+      # 会找不到 token 直接失败）；Node 24 + 显式升级 npm 保证版本达标
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: Ensure npm supports trusted publishing (>= 11.5.1)
+        run: |
+          npm install -g npm@^11
+          NPM_V="$(npm --version)"
+          echo "npm $NPM_V on node $(node --version)"
+          node -e '
+            const [a, b, c] = process.argv[1].split(".").map(Number);
+            if (a < 11 || (a === 11 && (b < 5 || (b === 5 && c < 1)))) {
+              console.error(`::error::npm ${process.argv[1]} is below 11.5.1, required for OIDC trusted publishing`);
+              process.exit(1);
+            }
+          ' "$NPM_V"
       - name: Verify version matches tag
         shell: bash
         run: |
