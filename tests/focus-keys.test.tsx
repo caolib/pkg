@@ -113,14 +113,15 @@ test(
 
       // --- 4. 全局搜索界面：← → 循环导航 + 输入框打字 ---
       await press("s");
-      // 搜索界面占位符 "在 {names} 中搜索..." 可能被渲染层吞掉尾部字符
-      // （本机 OpenTUI 原生缓冲的已知现象），检测不能只依赖 "中搜索"；
-      // 搜索打开时渲染器焦点在搜索输入框（isInput），主界面过滤框此时必未聚焦。
+      // 检测搜索 overlay 是否打开：搜索屏底栏 `${binding.install} i   ${binding.detail}
+      // v   ...` 的硬编码分隔段 " i   "（SearchScreen.tsx 模板常量，不随语言/快捷键
+      // 配置变）。占位符曾是 "在 {names} 中搜索..."（v1.1.x），后改为 "搜索..."，
+      // 不能再按占位符判断。检测失败=搜索未开（无可用管理器 → openSearch 只弹 toast）
       const isInput = () =>
         setup.renderer.currentFocusedRenderable?.constructor?.name === "InputRenderable";
       const f4 = setup.captureCharFrame();
       const inSearch =
-        (f4.includes("中搜索") || f4.includes("Search in") || f4.includes("在 ")) && isInput();
+        (f4.includes(" i   ") || f4.includes("中搜索") || f4.includes("Search in")) && isInput();
       if (!inSearch) {
         console.log("  · 本机无可用包管理器，跳过搜索界面用例");
       } else {
@@ -160,8 +161,9 @@ test(
         await type("opencode");
         check(!actionFired(), "搜索界面输入框打字不触发主界面快捷键");
         check(setup.captureCharFrame().includes("opencode"), "字符完整进入搜索输入框");
-        await pressEscape();
       }
+      // 若上方检测误判而 overlay 实际已打开，这里兜底关掉，避免污染用例 5
+      await pressEscape();
 
       // --- 5. 顶栏 ← → 聚焦过滤框：input 连带聚焦显示光标，且导航不被吞 ---
       // 曾 bug：← → 切到过滤框只高亮背景、无光标（OpenTUI 光标只在聚焦的
