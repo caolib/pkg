@@ -59,6 +59,12 @@ jobs:
   publish-npm:
     needs: build
     runs-on: ubuntu-latest
+    # npm OIDC Trusted Publisher 按包配置匹配 environment，必须显式声明
+    environment: NPM_TOKEN
+    # OIDC 免 token 发布必需的 id-token 权限
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -75,10 +81,7 @@ jobs:
             echo "::error::package.json version ($VERSION) does not match tag ($TAG)"
             exit 1
           fi
-      - name: Publish to npm
+      - name: Publish to npm (OIDC trusted publishing)
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
           npm publish --registry=https://registry.npmjs.org --access=public
