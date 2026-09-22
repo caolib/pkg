@@ -145,12 +145,13 @@ class CargoPackageManager extends PackageManager {
   }
 
   /** cargo 无内置 outdated 命令，并行逐个 cargo info 对比最新版本
-   *  （每包一个子进程，串行会随包数线性拖慢；runCommand 内置超时兜底）。 */
-  async listOutdated(): Promise<PackageInfo[]> {
-    const installed = await this.listInstalled();
-    if (installed.length === 0) return [];
+   *  （每包一个子进程，串行会随包数线性拖慢；runCommand 内置超时兜底）。
+   *  installed 由调用方传入可避免重复子进程调用（首页加载已先跑过 listInstalled）。 */
+  async listOutdated(installed?: PackageInfo[]): Promise<PackageInfo[]> {
+    const list = installed ?? (await this.listInstalled());
+    if (list.length === 0) return [];
     const results = await Promise.all(
-      installed.map(async (pkg) => {
+      list.map(async (pkg) => {
         try {
           const detail = await this.view(pkg.name);
           const latest = detail.latest_version;

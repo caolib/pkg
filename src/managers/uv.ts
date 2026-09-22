@@ -59,35 +59,41 @@ class UvPackageManager extends PackageManager {
     return packages;
   }
 
-  /** uv 无 outdated 命令，逐个 dry-run 解析最新版本对比。 */
-  async listOutdated(): Promise<PackageInfo[]> {
-    const installed = await this.listInstalled();
-    if (installed.length === 0) return [];
-    const outdated: PackageInfo[] = [];
-    for (const pkg of installed) {
-      try {
-        // 结果行在 stderr，故解析 stderr
-        const { stderr } = await runCommand("uv", [
-          "pip",
-          "install",
-          "--dry-run",
-          "--system",
-          "--no-deps",
-          pkg.name,
-        ]);
-        const latest = _parseResolved(stderr, pkg.name);
-        if (latest && latest !== pkg.version) {
-          outdated.push({
-            name: pkg.name,
-            version: pkg.version,
-            latest_version: latest,
-            manager: this.name,
-          });
+  /** uv 无 outdated 命令，并行逐个 dry-run 解析最新版本对比
+   *  （每包一个子进程，串行会随包数线性拖慢；runCommand 内置超时兜底）。
+   *  installed 由调用方传入可避免重复子进程调用（首页加载已先跑过 listInstalled）。
+   *  结果行 `+ name==version` 在 **stderr** 上。 */
+  async listOutdated(installed?: PackageInfo[]): Promise<PackageInfo[]> {
+    const list = installed ?? (await this.listInstalled());
+    if (list.length === 0) return [];
+    const results = await Promise.all(
+      list.map(async (pkg): Promise<PackageInfo | null> => {
+        try {
+          const { stderr } = await runCommand("uv", [
+            "pip",
+            "install",
+            "--dry-run",
+            "--system",
+            "--no-deps",
+            pkg.name,
+          ]);
+          const latest = _parseResolved(stderr, pkg.name);
+          if (latest && latest !== pkg.version) {
+            return {
+              name: pkg.name,
+              version: pkg.version,
+              latest_version: latest,
+              manager: this.name,
+            };
+          }
+          return null;
+        } catch {
+          // dry-run 解析失败（网络/无系统 Python 等）跳过该包
+          return null;
         }
-      } catch {
-        // dry-run 解析失败（网络/无系统 Python 等）跳过该包
-      }
-    }
+      }),
+    );
+    const outdated = results.filter((r): r is PackageInfo => r !== null);
     outdated.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
     return outdated;
   }

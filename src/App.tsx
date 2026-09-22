@@ -233,37 +233,35 @@ export function App() {
     }
     rerender();
     setLoadingHint(true);
-    // 逐个加载 installed，完成即刷新
+    // 每个管理器：先 listInstalled（完成即刷新列表），再 listOutdated（传入刚拿到的
+    // installed，避免 bun/cargo/uv 重复子进程调用）；跨管理器并发。总时长 ≈
+    // max(installed_i + outdated_i) 而非 max(installed) + max(outdated)。
+    // **outdated 必须无条件检查**：查不到最新版本时"最新版本"列整列 "-"，看着像
+    // 坏了（1.4.0 曾按配置项 auto_check_updates 跳过，用户以为程序出错）。
+    // 手动重查仍可用 c 键（reloadOutdated）。
     await Promise.all(
       managers.map(async (st) => {
-        if (st.loadedInstalled) return;
-        try {
-          st.installed = await st.instance.listInstalled();
+        if (!st.loadedInstalled) {
+          try {
+            st.installed = await st.instance.listInstalled();
+          } catch {
+            st.installed = [];
+          }
           st.loadedInstalled = true;
-        } catch {
-          st.installed = [];
-          st.loadedInstalled = true;
+          setCursor(0);
+          rerender();
         }
-        setCursor(0);
-        rerender();
-      }),
-    );
-    // 逐个检查 outdated，完成即刷新。**必须无条件检查**：查不到最新版本时
-    // "最新版本"列整列是 "-"，看着像坏了（1.4.0 曾按配置项 auto_check_updates
-    // 跳过，用户装上后以为程序出错）。手动重查仍可用 c 键（reloadOutdated）。
-    await Promise.all(
-      managers.map(async (st) => {
-        if (st.loadedOutdated) return;
-        try {
-          st.outdated = await st.instance.listOutdated();
-          st.outdatedMap = new Map(st.outdated.map((p) => [p.name, p]));
+        if (!st.loadedOutdated) {
+          try {
+            st.outdated = await st.instance.listOutdated(st.installed);
+            st.outdatedMap = new Map(st.outdated.map((p) => [p.name, p]));
+          } catch {
+            st.outdated = [];
+            st.outdatedMap = new Map();
+          }
           st.loadedOutdated = true;
-        } catch {
-          st.outdated = [];
-          st.outdatedMap = new Map();
-          st.loadedOutdated = true;
+          rerender();
         }
-        rerender();
       }),
     );
     setLoadingHint(false);

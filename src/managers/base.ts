@@ -27,8 +27,11 @@ export abstract class PackageManager {
 
   /** 列出所有已安装的全局包。 */
   abstract listInstalled(): Promise<PackageInfo[]>;
-  /** 列出所有有可用更新的已安装全局包。 */
-  abstract listOutdated(): Promise<PackageInfo[]>;
+  /** 列出所有有可用更新的已安装全局包。
+   *  可选 installed：调用方（App 首页加载）若已加载过 listInstalled，
+   *  传入可让 bun/cargo/uv 等需遍历已安装列表的后端避免重复子进程调用。
+   *  未传时这些后端回退到自行调用 listInstalled。 */
+  abstract listOutdated(installed?: PackageInfo[]): Promise<PackageInfo[]>;
   /** 在远端注册表中搜索包。 */
   abstract search(query: string): Promise<SearchResult[]>;
   /** 获取指定包的详细元数据。 */
