@@ -10,6 +10,7 @@ import type { InputRenderable } from "@opentui/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTextInputFocused } from "./focus";
 import { managerColor } from "./manager-colors";
+import { UPDATE_KIND_STYLES } from "./version-diff";
 import { getTerminalBackground } from "./terminal-colors";
 import { beginTerminalProgress, trackOpLogProgress } from "./terminal-progress";
 import { t, setLanguage, currentLanguage } from "./i18n";
@@ -69,6 +70,20 @@ interface Toast {
   id: number;
   message: string;
   severity: "info" | "warn" | "error";
+}
+
+/** "最新版本"列文本：可定档时在版本号后加"空格 + 符号"（2 列），否则原样。
+ *  两套列集（全部/代表视图 与 单管理器视图）共用，改一处必须同步另一处。 */
+function latestCellText(r: InstalledRow): string {
+  const v = r.latestVersion || "-";
+  return r.updateKind ? `${v} ${UPDATE_KIND_STYLES[r.updateKind].marker}` : v;
+}
+
+/** "最新版本"列颜色：按更新跨度档位（大 ▲ 橙 / 中 ● 黄 / 小 · 绿）；
+ *  无法定档时回退现状：有更新=绿，无更新=表格默认色。 */
+function latestCellColor(r: InstalledRow): string | undefined {
+  if (r.updateKind) return UPDATE_KIND_STYLES[r.updateKind].color;
+  return r.hasUpdate ? "#6b6" : undefined;
 }
 
 export function App() {
@@ -297,9 +312,9 @@ export function App() {
           {
             key: "latest",
             label: t("col.latest"),
-            width: 16,
-            render: (r) => r.latestVersion || "-",
-            fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
+            width: 18, // 16 基础上 +2：给版本号后的"空格 + 符号"留位
+            render: latestCellText,
+            fgOverride: latestCellColor,
           },
           {
             key: "manager",
@@ -328,9 +343,9 @@ export function App() {
           {
             key: "latest",
             label: t("col.latest"),
-            width: 18,
-            render: (r) => r.latestVersion || "-",
-            fgOverride: (r) => (r.hasUpdate ? "#6b6" : undefined),
+            width: 20, // 18 基础上 +2：给版本号后的"空格 + 符号"留位
+            render: latestCellText,
+            fgOverride: latestCellColor,
           },
         ];
 

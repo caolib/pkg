@@ -30,6 +30,7 @@ import {
   saveConfig,
   configExists,
 } from "./config";
+import { classifyUpdate, type UpdateKind } from "./version-diff";
 
 /** "全部"视图的特殊标识 */
 export const ALL_MANAGERS = "__all__";
@@ -69,6 +70,9 @@ export interface InstalledRow {
   hasUpdate: boolean;
   /** 最新版本展示值（有更新=cached.latest_version；已检测但无更新=当前版本；未检测=空） */
   latestVersion: string;
+  /** 更新跨度档位；hasUpdate=false 或无法定档（相等/降级/不可解析/仅预发布差异）为 null，
+   *  展示回退现状（"有更新"绿色、不加符号）。见 version-diff.ts */
+  updateKind: UpdateKind | null;
 }
 
 /**
@@ -424,6 +428,7 @@ export function buildInstalledRows(
         loading,
         hasUpdate: up,
         latestVersion: latestVer,
+        updateKind: up ? classifyUpdate(pkg.version, latestVer) : null,
       });
     }
   }

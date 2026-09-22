@@ -99,6 +99,10 @@ src/
 ├── manager-colors.ts      # 管理器专属前景色 managerColor(name)：表格"管理器"列按 name 着色，
 │                          #   色相环均匀分布；显示名可自定义故颜色跟随真实 name；新增后端须补色
 │                          #   （tests/manager-colors.test.ts 守"每个已注册管理器都有唯一颜色"）
+├── version-diff.ts        # 更新跨度分档 classifyUpdate(current, latest)：第1段变=大、第2段=中、
+│                          #   第3段及以后=小（4段版本末两段同属小）；UPDATE_KIND_STYLES 给
+│                          #   {颜色,符号}（▲橙/●黄/·绿）；无法定档（相等/降级/不可解析/仅预发布
+│                          #   差异）返回 null，调用方回退现状（tests/version-diff.test.ts 守规则与不变量）
 ├── locales/{zh_CN,en_US}.json
 ├── managers/
 │   ├── types.ts           # PackageInfo / SearchResult / PackageDetail / OperationResult
@@ -158,6 +162,15 @@ src/
 - **解耦**：`App.tsx` 只依赖 `PackageManager` 抽象与注册表，不 import 具体后端；
   新增管理器只需实现接口 + `registerManager` + 在 `managers/index.ts` import。
 - **领域逻辑在 `runtime.ts`**，不碰 React/渲染，可独立测试与复用。
+- **主界面"最新版本"列按更新跨度分档**：`InstalledRow.updateKind`（`buildInstalledRows`
+  里用 `classifyUpdate(pkg.version, latestVersion)` 算出，见 `version-diff.ts`）决定
+  "版本号 + 后缀符号"（`▲` 大 / `●` 中 / `·` 小）与颜色（橙/黄/绿）；`null` 表示无法定档
+  （相等/降级/不可解析/仅预发布差异），回退现状——有更新=绿 `#6b6`、无更新=默认色，不加符号。
+  **App.tsx 两套列集（全部/代表视图 与 单管理器视图）共用 `latestCellText/latestCellColor`
+  两个模块级 helper**，改一处必须同步另一处（"用法须全局一致"）；列宽 18/20 已含符号的 2 列。
+  "仅显示可更新"过滤与顶栏计数仍按 `hasUpdate`（字符串不等），**不得**改用 `updateKind`
+  （仅预发布差异的更新会被漏掉）。回归测试见 `tests/version-diff.test.ts` 与
+  `tests/installed-rows-update-kind.test.ts`。
 - **OpenTUI 渲染特性约束**：
   - `<text>` **不支持** `backgroundColor`（用 `bg`），**不支持** ellipsis；超宽用 `truncate`
     + `width`（布局宽度）裁切。
