@@ -96,6 +96,9 @@ src/
 ├── width.ts               # dispWidthStr 显示宽度（CJK 全角/emoji 计 2 列）
 ├── terminal-colors.ts     # getTerminalBackground 终端默认背景色（跟随主页背景）；getTerminalBackgroundSync 同步读缓存
 ├── terminal-progress.ts   # Windows Terminal OSC 9;4 标签页/任务栏转圈（引用计数；非 TTY 不写、try/catch 兜底）
+├── manager-colors.ts      # 管理器专属前景色 managerColor(name)：表格"管理器"列按 name 着色，
+│                          #   色相环均匀分布；显示名可自定义故颜色跟随真实 name；新增后端须补色
+│                          #   （tests/manager-colors.test.ts 守"每个已注册管理器都有唯一颜色"）
 ├── locales/{zh_CN,en_US}.json
 ├── managers/
 │   ├── types.ts           # PackageInfo / SearchResult / PackageDetail / OperationResult
@@ -298,7 +301,9 @@ src/
 2. 设置实例字段 `name`（必填）、`display_name / icon / description / registry`。
 3. 文件末尾调用 `registerManager(YourClass)`。
 4. 在 `src/managers/index.ts` 加一行 `import "./your_module"`。
-5. 子进程调用复用 `_cli.ts` 的 `runCommand/parseJson`；npm 系解析可复用 `npm.ts` 的
+5. 在 `src/manager-colors.ts` 的 `MANAGER_COLORS` 补一个专属颜色（表格"管理器"列
+   按 name 着色；漏了会回退默认前景色，`tests/manager-colors.test.ts` 会报错）。
+6. 子进程调用复用 `_cli.ts` 的 `runCommand/parseJson`；npm 系解析可复用 `npm.ts` 的
    `_parseSearchResults/_parsePackageDetail/_makeResult`。
 
 UI 层（顶栏按钮、全部视图、搜索、确认）会自动识别新管理器，**无需改 App/screens**。

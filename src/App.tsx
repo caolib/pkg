@@ -9,6 +9,7 @@ import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import type { InputRenderable } from "@opentui/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTextInputFocused } from "./focus";
+import { managerColor } from "./manager-colors";
 import { getTerminalBackground } from "./terminal-colors";
 import { beginTerminalProgress, trackOpLogProgress } from "./terminal-progress";
 import { t, setLanguage, currentLanguage } from "./i18n";
@@ -310,6 +311,10 @@ export function App() {
               isAll
                 ? reg.rowManagerDisplayName(r.managerName)
                 : reg.managerDisplayName(r.managerName),
+            // 管理器专属色（见 manager-colors.ts）：颜色随"显示的规范名"走——
+            // 全部视图合并显示时 pnpm/bun 显示为 npm，颜色也统一为 npm 色。
+            fgOverride: (r) =>
+              managerColor(isAll ? reg.displayManagerName(r.managerName) : r.managerName),
           },
         ]
       : [

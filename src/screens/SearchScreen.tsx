@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isTextInputFocused } from "../focus";
 import { t } from "../i18n";
 import { formatRelativeTime } from "../date";
+import { managerColor } from "../manager-colors";
 import {
   FALLBACK_BACKGROUND,
   getTerminalBackground,
@@ -163,6 +164,8 @@ export function SearchScreen(props: SearchScreenProps) {
     label: t("col.manager"),
     width: 12,
     render: (r) => managerName?.(r.sourceLabel) ?? r.sourceLabel,
+    // 管理器专属色（见 manager-colors.ts）；sourceLabel 即真实管理器 name
+    fgOverride: (r) => managerColor(r.sourceLabel),
   };
   const columns: TableColumn<SearchRow>[] = [
     ...(showManagerCol ? [managerColumn] : []),

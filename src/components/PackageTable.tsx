@@ -50,7 +50,8 @@ export interface TableColumn<R> {
   /** 列宽（字符数）；autoFitWidths 时仅作为测量不足时的保底值 */
   width: number;
   render: (row: R) => ReactNode;
-  /** 单元格前景色覆盖（用于高亮可更新版本等），返回颜色串 */
+  /** 单元格前景色覆盖（用于高亮可更新版本、管理器专属色等），返回颜色串；
+   *  命中时优先于光标行/悬浮行的默认前景色，行背景高亮不受影响 */
   fgOverride?: (row: R) => string | undefined;
   /** autoFitWidths 时本列宽度上限，覆盖全局默认 */
   maxColumnWidth?: number;
