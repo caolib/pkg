@@ -136,6 +136,10 @@ export function App() {
   // focused prop 本就是 false，React 不会 diff 出变化，只能手动 blur）
   const filterInputRef = useRef<InputRenderable | null>(null);
 
+  // 打开设置时的"已禁用管理器集合"快照：关闭时做脏检测——什么都没改就
+  // 不必重查可更新（见 onSettingsClosed）。
+  const settingsDisabledSnapshotRef = useRef<Set<string>>(new Set());
+
   /** 退出过滤输入模式：同步 state 与渲染器真实焦点，交还表格。 */
   function exitFilterMode() {
     setFilterMode(false);
@@ -800,6 +804,7 @@ export function App() {
 
   function openSettings() {
     exitFilterMode();
+    settingsDisabledSnapshotRef.current = new Set(reg.disabledManagers);
     pushOverlay({ kind: "settings" });
   }
 
@@ -830,6 +835,15 @@ export function App() {
     if (langChanged) {
       showToast(t("notify.restart_for_footer"), "info", 8000);
     }
+
+    // 脏检测：语言、禁用集合都没变，当前视图也没失效 → 无实质变更，
+    // 直接返回（popOverlay 已触发重渲染，顶栏按钮/行归属会按 reg 现态重算）。
+    // 否则每次"进设置什么都没干点关闭"都会白重查一遍可更新（outdated），
+    // 各管理器 CLI 被无谓地再跑一次。注意 checkAll("a") 自动禁用的管理器
+    // 会让集合真变，仍走下面的重载。
+    const mgrChanged = !setsEqual(settingsDisabledSnapshotRef.current, result.disabledManagers);
+    if (!langChanged && !mgrChanged && !currentDisabled) return;
+
     // 刷新顶栏按钮（可用性/禁用态可能变了）并重载数据。
     // current 未变才能安全 reloadAll（闭包 current 仍有效）；变了的走
     // switchManager（内部已用新名字 loadCurrentView，避免旧闭包加载旧视图）
@@ -1040,6 +1054,17 @@ export function App() {
       })}
     </box>
   );
+}
+
+// ---------------------------------------------------------------------------
+// 小工具
+// ---------------------------------------------------------------------------
+
+/** 两个字符串集合内容是否相等（与插入顺序无关）。 */
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
 }
 
 // ---------------------------------------------------------------------------

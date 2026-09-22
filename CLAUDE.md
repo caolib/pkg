@@ -325,6 +325,12 @@ src/
   （1.4.0 曾按配置项 `auto_check_updates` 在启动时跳过，结果查不到最新版本的包整列显示 `-`，
   看着像程序坏了——该配置项与设置界面开关已删除）。手动重查用 `c` 键（`reloadOutdated`，
   只失效 outdated 缓存、不重载 installed）。单管理器失败会被 catch 成"无更新"，不影响其他管理器。
+- **关闭设置界面须做脏检测**：`SettingsScreen.finish()` **总是**回传非 null 的 `SettingsResult`，
+  故 `App.onSettingsClosed` 不能只看 `result !== null` 就重载——用语言 + 禁用集合快照
+  （`settingsDisabledSnapshotRef`，`openSettings` 时记录）比对，均未变且当前视图未失效时直接
+  返回（`popOverlay` 的重渲染已足够刷新顶栏/行归属）。否则"进设置什么都没干点关闭"会白重查
+  一遍可更新（各管理器 CLI 无谓再跑一次）。禁用了管理器/改语言/`a` 重新检测导致自动禁用时
+  集合真变，仍走原重载路径。
 - **状态刷新**：`ManagerRegistry`（`useRef` 单例）内部是 mutable；数据加载后调 `rerender()`
   强制重渲染，`buildInstalledRows`/`buildStripItems` 每次**直接计算**（不能用 `useMemo` 缓存，
   否则 reg 内部变化不会反映）。
