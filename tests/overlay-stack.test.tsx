@@ -23,6 +23,21 @@ async function pump(setup: Awaited<ReturnType<typeof testRender>>, rounds = 10) 
   }
 }
 
+/** 发送 Esc 并等它真正送达组件。
+ *
+ * Esc 单发时 stdin 解析器会先把它当作转义序列前缀挂起，等 20ms 超时窗口
+ * （@opentui/core 的 DEFAULT_TIMEOUT_MS）到期才 flush 出独立的 Escape 键；
+ * pump 的 setTimeout(0) 轮次实耗时间凑不满该窗口，Esc 往往还没送达就断言
+ * （曾表现为"Esc 不触发 onClose/onCancel"的假失败）。故这里实等一段真实
+ * 时间再渲染，同 focus-keys/smoke 的 pressEscape 约定。 */
+async function pressEscape(setup: Awaited<ReturnType<typeof testRender>>) {
+  await act(async () => {
+    setup.mockInput.pressEscape();
+    await new Promise((r) => setTimeout(r, 200));
+  });
+  await pump(setup);
+}
+
 const check = (cond: boolean, msg: string) => {
   if (!cond) throw new Error(msg);
   console.log("  ✓", msg);
@@ -49,10 +64,7 @@ test("SearchScreen：active=false 时不响应按键（overlay 栈仅顶层交�
   const setup = await testRender(<Harness />, { width: 80, height: 20 });
   try {
     await pump(setup);
-    await act(async () => {
-      setup.mockInput.pressEscape();
-    });
-    await pump(setup);
+    await pressEscape(setup);
     check(closed === 0, "active=false 时 Esc 不触发 onClose");
     await act(async () => {
       setup.mockInput.pressKey("i");
@@ -65,10 +77,7 @@ test("SearchScreen：active=false 时不响应按键（overlay 栈仅顶层交�
       toggle();
     });
     await pump(setup);
-    await act(async () => {
-      setup.mockInput.pressEscape();
-    });
-    await pump(setup);
+    await pressEscape(setup);
     check(closed === 1, "active=true 后 Esc 恢复触发 onClose");
   } finally {
     setup.renderer.destroy();
@@ -118,10 +127,7 @@ test("ConfirmDialog options 模式：多按钮 + 预览随聚焦切换 + Enter �
     check(acted === "pnpm", `Enter 执行聚焦选项 pnpm（实际 ${acted}）`);
 
     // Esc 取消
-    await act(async () => {
-      setup.mockInput.pressEscape();
-    });
-    await pump(setup);
+    await pressEscape(setup);
     check(cancelled === 1, "Esc 触发取消");
   } finally {
     setup.renderer.destroy();

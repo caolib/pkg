@@ -204,6 +204,12 @@ src/
     `mockMouse.scroll/click` 后不能立即断言——必须多轮 `tick() + renderOnce()`（约 10
     轮）消化，事件逐条处理；测试里每次事件后都要 pump，否则偶发丢事件导致断言失败
     （曾表现为"滚动一次后窗口不动"的假故障）。
+  - **Esc 单发同理，且 pump 不够**：`pressEscape()` 只 emit 一个 `\x1B` 字节，解析器
+    先当作转义序列前缀挂起，等满 20ms（`DEFAULT_TIMEOUT_MS`）才 flush 成独立 Escape
+    键；10 轮 `setTimeout(0)` 的 pump 实耗时间凑不满该窗口，按键还没送达断言就跑了
+    （曾表现为"Esc 不触发 onClose/onCancel"的假失败）。测试里必须用实等一段真实时间
+    的 `pressEscape` 助手（200ms，见 focus-keys/smoke/overlay-stack/output-screen），
+    不要照抄 pump 写法。
   - **加载状态统一用 `LoadingIndicator`**：所有需要显示"加载中"的地方都应使用
     `src/components/LoadingIndicator.tsx`（单方向扫描 + 尾部色衰减动画），不要再写
     静态 `<text>加载中...</text>`。已接入：主页 `loadingHint` 空表占位、详情屏

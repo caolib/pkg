@@ -24,6 +24,21 @@ async function pump(setup: Awaited<ReturnType<typeof testRender>>, rounds = 10) 
   }
 }
 
+/** 发送 Esc 并等它真正送达组件。
+ *
+ * Esc 单发时 stdin 解析器会先把它当作转义序列前缀挂起，等 20ms 超时窗口
+ * （@opentui/core 的 DEFAULT_TIMEOUT_MS）到期才 flush 出独立的 Escape 键；
+ * pump 的 setTimeout(0) 轮次实耗时间凑不满该窗口，Esc 往往还没送达就断言
+ * （曾表现为"Esc 触发 onClose"的假失败）。故这里实等一段真实时间再渲染，
+ * 同 focus-keys/smoke 的 pressEscape 约定。 */
+async function pressEscape(setup: Awaited<ReturnType<typeof testRender>>) {
+  await act(async () => {
+    setup.mockInput.pressEscape();
+    await new Promise((r) => setTimeout(r, 200));
+  });
+  await pump(setup);
+}
+
 test("命令输出界面：空态 + 实时追加 + 状态/退出码 + ↑↓ 切换 + Esc 关闭", async () => {
   const check = (cond: boolean, msg: string) => {
     if (!cond) throw new Error(msg);
@@ -101,10 +116,7 @@ test("命令输出界面：空态 + 实时追加 + 状态/退出码 + ↑↓ 切
     check(f.includes("失败") || f.includes("Failed"), "↑ 切回失败条目");
 
     // Esc 关闭
-    await act(async () => {
-      setup.mockInput.pressEscape();
-    });
-    await pump(setup);
+    await pressEscape(setup);
     check(closed === 1, "Esc 触发 onClose");
   } finally {
     opLog.clear();
