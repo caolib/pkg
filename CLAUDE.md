@@ -101,8 +101,9 @@ src/
 │                          #   （tests/manager-colors.test.ts 守"每个已注册管理器都有唯一颜色"）
 ├── version-diff.ts        # 更新跨度分档 classifyUpdate(current, latest)：第1段变=大、第2段=中、
 │                          #   第3段及以后=小（4段版本末两段同属小）；UPDATE_KIND_STYLES 给
-│                          #   {颜色,符号}（▲橙/●黄/·绿）；无法定档（相等/降级/不可解析/仅预发布
-│                          #   差异）返回 null，调用方回退现状（tests/version-diff.test.ts 守规则与不变量）
+│                          #   {颜色,符号}（▲橙/●黄，小版本只绿不着符号）；无法定档（相等/降级/
+│                          #   不可解析/仅预发布差异）返回 null，调用方回退现状
+│                          #   （tests/version-diff.test.ts 守规则与不变量）
 ├── locales/{zh_CN,en_US}.json
 ├── managers/
 │   ├── types.ts           # PackageInfo / SearchResult / PackageDetail / OperationResult
@@ -118,7 +119,8 @@ src/
 │   ├── uv.ts              # tool list 正则；outdated 逐个 dry-run 解析（结果在 stderr）；search/view 不支持（uv 无此子命令）
 │   └── index.ts           # import 各后端触发注册 + 统一导出
 ├── components/
-│   ├── PackageTable.tsx   # 自建受控表格（box+text，光标行高亮、鼠标悬浮高亮、勾选前缀、滚动窗口、columnGap 列间隔、横向滚动 scrollX）
+│   ├── PackageTable.tsx   # 自建受控表格（box+text，光标行高亮、鼠标悬浮高亮、勾选前缀、滚动窗口、columnGap 列间隔、
+│   │                      #   列宽模式 widthMode：fixed/fit(内容测量)/flex(吸收剩余宽度)、横向滚动 scrollX）
 │   ├── LoadingIndicator.tsx # 全局加载指示器（单方向扫描 + 色衰减动画，setInterval 推帧）
 │   ├── ModalBackdrop.tsx  # 模态背景容器（overlay 实底盖住主页；ConfirmDialog/
 │   │                      #   DetailScreen/SettingsScreen 共用，终端背景色见 terminal-colors）
@@ -164,13 +166,24 @@ src/
 - **领域逻辑在 `runtime.ts`**，不碰 React/渲染，可独立测试与复用。
 - **主界面"最新版本"列按更新跨度分档**：`InstalledRow.updateKind`（`buildInstalledRows`
   里用 `classifyUpdate(pkg.version, latestVersion)` 算出，见 `version-diff.ts`）决定
-  "版本号 + 后缀符号"（`▲` 大 / `●` 中 / `·` 小）与颜色（橙/黄/绿）；`null` 表示无法定档
-  （相等/降级/不可解析/仅预发布差异），回退现状——有更新=绿 `#6b6`、无更新=默认色，不加符号。
+  "版本号 + 后缀符号"与颜色：大版本 `▲` 橙 / 中版本 `●` 黄 / 小版本**不加符号**只着绿；
+  `null` 表示无法定档（相等/降级/不可解析/仅预发布差异），回退现状——有更新=绿 `#6b6`、
+  无更新=默认色，不加符号。符号为空时 `latestCellText` 不追加尾部空格（否则白占 1 列）。
   **App.tsx 两套列集（全部/代表视图 与 单管理器视图）共用 `latestCellText/latestCellColor`
-  两个模块级 helper**，改一处必须同步另一处（"用法须全局一致"）；列宽 18/20 已含符号的 2 列。
+  两个模块级 helper**，改一处必须同步另一处（"用法须全局一致"）。
   "仅显示可更新"过滤与顶栏计数仍按 `hasUpdate`（字符串不等），**不得**改用 `updateKind`
   （仅预发布差异的更新会被漏掉）。回归测试见 `tests/version-diff.test.ts` 与
   `tests/installed-rows-update-kind.test.ts`。
+- **主界面列宽（`widthMode`）**：名称列 `widthMode: "flex"`（吸收整行剩余宽度，`width`
+  36/40 只是**最小宽度**——窄终端/超长版本号下不会低于它，超出部分靠右侧裁切）；
+  版本/最新版本/管理器三列 `widthMode: "fit"`（按表头 + 全部行内容的显示宽度取 max）。
+  版本类两列另配 `maxColumnWidth: MAX_VERSION_COL_WIDTH`（30 = 28 列版本号 + 2 列内边距）
+  封顶：fit 是"全部行"测量，极少数包的版本串是一长串英文/数字（winget 的
+  `Ladybug Feature Drop 2024.2.2 Patch 2`、"26.10.26174.0747211111111111"），不封顶会
+  把整列撑到 40+ 列、把最右边的管理器列挤出屏幕（封顶后超长串按 `truncate` 截断）。
+  列宽由 `PackageTable` 的 `measureColumnWidth` 每帧测量（fit 列）与 Yoga flexGrow
+  （flex 列）决定，**不要**再给这些列写固定宽度。回归测试见
+  `tests/package-table-widths.test.tsx`。
 - **OpenTUI 渲染特性约束**：
   - `<text>` **不支持** `backgroundColor`（用 `bg`），**不支持** ellipsis；超宽用 `truncate`
     + `width`（布局宽度）裁切。
@@ -198,9 +211,12 @@ src/
   - **`PackageTable` 用法须全局一致**：所有用到 `PackageTable` 的界面（主页已安装表格、
     搜索结果表格等）都必须保持**相同的交互行为**——鼠标滚轮上下移动光标行
     （`onScrollMove` 回写 `cursor`）、单击选中行、双击触发 `onRowDoubleClick`、
-    列宽 `autoFitWidths` + `columnGap`、横向溢出时 `scrollX`。新增界面用 `PackageTable`
-    时直接复用这套回调，不要省略 `onScrollMove`（否则滚轮在表格上无反应，与主页割裂）。
-    这条是"整体风格一致"规范，改动 PackageTable 默认行为或任一界面的回调均需同步另一处。
+    `columnGap` 列间隔、横向溢出时 `scrollX`。列宽两种口径：主页用
+    `widthMode`（flex 名称列 + fit 其余列，见"主界面列宽"），搜索页用整表
+    `autoFitWidths`（= 所有未指定 `widthMode` 的列都按内容测量）。新增界面用
+    `PackageTable` 时直接复用这套回调，不要省略 `onScrollMove`（否则滚轮在表格上无反应，
+    与主页割裂）。这条是"整体风格一致"规范，改动 PackageTable 默认行为或任一界面的
+    回调均需同步另一处。
   - **设置界面（`SettingsScreen`）的鼠标行为与列表滚动窗口**：设置界面的自建列表与
     `PackageTable` 交互一致——单击行 = 选中并激活（`onMouseDown` + `stopPropagation`，
     同 ConfirmDialog 按钮）、悬浮行高亮（`hover` state，光标 > 悬浮 > 透明）、滚轮在

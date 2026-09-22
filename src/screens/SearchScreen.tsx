@@ -156,32 +156,29 @@ export function SearchScreen(props: SearchScreenProps) {
     inputRef.current?.blur();
   }
 
-  // 列宽由 autoFitWidths 按内容自动测量（显示宽度），width 仅作保底。
+  // 列宽全部交给 autoFitWidths 按内容测量（显示宽度）。
   // 只有"全部"范围才需要标注来源管理器，单管理器范围整列都是同一来源，隐藏。
   const showManagerCol = target === ALL_MANAGERS;
   const managerColumn: TableColumn<SearchRow> = {
     key: "manager",
     label: t("col.manager"),
-    width: 12,
     render: (r) => managerName?.(r.sourceLabel) ?? r.sourceLabel,
     // 管理器专属色（见 manager-colors.ts）；sourceLabel 即真实管理器 name
     fgOverride: (r) => managerColor(r.sourceLabel),
   };
   const columns: TableColumn<SearchRow>[] = [
     ...(showManagerCol ? [managerColumn] : []),
-    { key: "name", label: t("col.name"), width: 30, render: (r) => shownResultName(r.result) },
-    { key: "version", label: t("col.version"), width: 14, render: (r) => r.result.version || "-" },
+    { key: "name", label: t("col.name"), render: (r) => shownResultName(r.result) },
+    { key: "version", label: t("col.version"), render: (r) => r.result.version || "-" },
     {
       key: "date",
       label: t("col.date"),
-      width: 12,
       render: (r) => (r.result.date ? formatRelativeTime(r.result.date) : "-"),
     },
     // 描述放最后一列，避免挤压后面列；也受益于 autoFitWidths 的内容测量
     {
       key: "description",
       label: t("col.description"),
-      width: 40,
       render: (r) => r.result.description || "-",
       maxColumnWidth: 80,
     },

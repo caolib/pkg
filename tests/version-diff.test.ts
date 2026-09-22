@@ -1,9 +1,9 @@
 /**
  * 版本跨度分档（version-diff.ts）回归测试。
  *
- * 主界面"最新版本"列按 updateKind 着色 + 加符号（大 ▲ 橙 / 中 ● 黄 / 小 · 绿），
+ * 主界面"最新版本"列按 updateKind 着色 + 加符号（大 ▲ 橙 / 中 ● 黄 / 小 绿且无符号），
  * 这里守住定档规则与"无法定档 → null"的边界（调用方据此回退现状：绿、无符号），
- * 以及样式表不变量（三档齐全、颜色/符号互不相同、符号单列宽）。
+ * 以及样式表不变量（三档齐全、颜色互不相同、有符号的档位符号单列宽且互不相同）。
  *
  * 运行：bun test
  */
@@ -78,7 +78,7 @@ test("日期型版本按位次自然落档（不特判）", () => {
   expectKind("2024.01.01", "2024.01.02", "patch");
 });
 
-test("样式表不变量：三档齐全、颜色与符号互不相同、符号单列宽", () => {
+test("样式表不变量：三档齐全、颜色互不相同、符号只在需要时给且单列宽", () => {
   const kinds: UpdateKind[] = ["major", "minor", "patch"];
   const colors = new Set<string>();
   const markers = new Set<string>();
@@ -86,10 +86,18 @@ test("样式表不变量：三档齐全、颜色与符号互不相同、符号�
     const style = UPDATE_KIND_STYLES[k];
     check(style !== undefined, `${k} 有样式`);
     check(typeof style.color === "string" && style.color.length > 0, `${k} 有颜色 ${style.color}`);
-    check(dispWidthStr(style.marker) === 1, `${k} 符号 "${style.marker}" 单列宽`);
+    if (style.marker) {
+      check(dispWidthStr(style.marker) === 1, `${k} 符号 "${style.marker}" 单列宽`);
+      markers.add(style.marker);
+    }
     colors.add(style.color);
-    markers.add(style.marker);
   }
   check(colors.size === 3, "三档颜色互不相同");
-  check(markers.size === 3, "三档符号互不相同");
+  check(markers.size === 2, "大/中两档符号互不相同");
+  // 小版本不加符号（满屏 `·` 太吵），只靠颜色区分
+  check(UPDATE_KIND_STYLES.patch.marker === "", "小版本不带符号");
+  check(
+    UPDATE_KIND_STYLES.major.marker !== "" && UPDATE_KIND_STYLES.minor.marker !== "",
+    "大/中版本保留符号 ▲ / ●",
+  );
 });

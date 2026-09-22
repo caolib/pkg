@@ -72,14 +72,22 @@ interface Toast {
   severity: "info" | "warn" | "error";
 }
 
-/** "最新版本"列文本：可定档时在版本号后加"空格 + 符号"（2 列），否则原样。
+/** 版本 / 最新版本列的最大列宽（含 2 列内边距 → 版本号最多显示 28 列）。
+ *  极少数包的版本串是一长串英文/数字（如 winget 的
+ *  "Ladybug Feature Drop 2024.2.2 Patch 2"、"26.10.26174.0747211111111111"），
+ *  不封顶会把这两列撑到 40+ 列，把最右边的管理器列挤出屏幕。 */
+const MAX_VERSION_COL_WIDTH = 30;
+
+/** "最新版本"列文本：可定档且有符号时在版本号后加"空格 + 符号"（2 列），
+ *  否则原样（小版本更新无符号，见 UPDATE_KIND_STYLES）。
  *  两套列集（全部/代表视图 与 单管理器视图）共用，改一处必须同步另一处。 */
 function latestCellText(r: InstalledRow): string {
   const v = r.latestVersion || "-";
-  return r.updateKind ? `${v} ${UPDATE_KIND_STYLES[r.updateKind].marker}` : v;
+  const marker = r.updateKind ? UPDATE_KIND_STYLES[r.updateKind].marker : "";
+  return marker ? `${v} ${marker}` : v;
 }
 
-/** "最新版本"列颜色：按更新跨度档位（大 ▲ 橙 / 中 ● 黄 / 小 · 绿）；
+/** "最新版本"列颜色：按更新跨度档位（大 ▲ 橙 / 中 ● 黄 / 小 绿、无符号）；
  *  无法定档时回退现状：有更新=绿，无更新=表格默认色。 */
 function latestCellColor(r: InstalledRow): string | undefined {
   if (r.updateKind) return UPDATE_KIND_STYLES[r.updateKind].color;
@@ -305,21 +313,32 @@ export function App() {
           {
             key: "name",
             label: t("col.name"),
+            // 名称列吸收整行剩余宽度（width 为最小宽度：窄终端下不再被压缩，靠右侧裁切）
+            widthMode: "flex",
             width: 36,
             render: (r) => r.pkg.display_name || r.pkg.name,
           },
-          { key: "version", label: t("col.version"), width: 16, render: (r) => r.pkg.version || "-" },
+          // 版本/最新版本/管理器三列贴合内容（表头与各行的最大显示宽度，含版本符号），
+          // 省下来的宽度全部给名称列；版本类两列封顶 MAX_VERSION_COL_WIDTH
+          {
+            key: "version",
+            label: t("col.version"),
+            widthMode: "fit",
+            maxColumnWidth: MAX_VERSION_COL_WIDTH,
+            render: (r) => r.pkg.version || "-",
+          },
           {
             key: "latest",
             label: t("col.latest"),
-            width: 18, // 16 基础上 +2：给版本号后的"空格 + 符号"留位
+            widthMode: "fit",
+            maxColumnWidth: MAX_VERSION_COL_WIDTH,
             render: latestCellText,
             fgOverride: latestCellColor,
           },
           {
             key: "manager",
             label: t("col.manager"),
-            width: 12,
+            widthMode: "fit",
             // "全部"视图合并显示时统一显示代表名（npm）；代表视图显示真实
             // 管理器（npm/pnpm/bun），否则该列没有区分度
             render: (r) =>
@@ -336,14 +355,22 @@ export function App() {
           {
             key: "name",
             label: t("col.name"),
+            widthMode: "flex",
             width: 40,
             render: (r) => r.pkg.display_name || r.pkg.name,
           },
-          { key: "version", label: t("col.version"), width: 18, render: (r) => r.pkg.version || "-" },
+          {
+            key: "version",
+            label: t("col.version"),
+            widthMode: "fit",
+            maxColumnWidth: MAX_VERSION_COL_WIDTH,
+            render: (r) => r.pkg.version || "-",
+          },
           {
             key: "latest",
             label: t("col.latest"),
-            width: 20, // 18 基础上 +2：给版本号后的"空格 + 符号"留位
+            widthMode: "fit",
+            maxColumnWidth: MAX_VERSION_COL_WIDTH,
             render: latestCellText,
             fgOverride: latestCellColor,
           },

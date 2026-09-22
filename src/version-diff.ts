@@ -1,5 +1,6 @@
 /**
- * 版本跨度分档：主界面"最新版本"列按更新大小着色 + 加符号，一眼看出更新量级。
+ * 版本跨度分档：主界面"最新版本"列按更新大小着色（大/中版本再各加一个符号 ▲/●），
+ * 一眼看出更新量级；小版本只着色不加符号（满屏 `·` 太吵）。
  *
  * 位次定档（位次与版本段数无关）：
  *  - 第 1 段不同 = 大版本 major（如 1.2.3 → 2.0.0）
@@ -17,14 +18,16 @@ export type UpdateKind = "major" | "minor" | "patch";
 export interface UpdateKindStyle {
   /** 单元格前景色（在光标行深蓝底 #264f78 上可读） */
   color: string;
-  /** 版本号前缀标记（单列宽，见 src/width.ts 的宽字符表） */
+  /** 版本号后的标记（宽 1 列，见 src/width.ts 的宽字符表）；
+   *  "" 表示不加标记（仅靠颜色区分档位） */
   marker: string;
 }
 
+/** 档位样式：大/中版本加符号（▲/●），小版本只有颜色不加符号（满屏 `·` 太吵）。 */
 export const UPDATE_KIND_STYLES: Record<UpdateKind, UpdateKindStyle> = {
   major: { color: "#f0883e", marker: "▲" },
   minor: { color: "#f9c74f", marker: "●" },
-  patch: { color: "#6b6", marker: "·" },
+  patch: { color: "#6b6", marker: "" },
 };
 
 /** 按位次定档；无法定档返回 null（见文件头注释的 null 语义）。 */

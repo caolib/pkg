@@ -10,8 +10,10 @@
  *    相邻列之间用 columnGap（默认 2）留间隔；
  *  - 鼠标滚轮上下滚动移动光标（由父组件响应 onScrollMove 回写 cursor），
  *    每档滚动 VSCROLL_STEP 行，避免长列表滚起来太吃力；
- *  - autoFitWidths：按表头与内容（显示宽度，CJK/emoji 按 2 列）自动算列宽，
- *    内容比预设 width 更长时自动加宽，上限 maxColumnWidth；
+ *  - 列宽模式（widthMode）：fixed 用固定 width；fit 按表头与内容（显示宽度，
+ *    CJK/emoji 按 2 列）测量自适应，上限 maxColumnWidth；flex 交给 Yoga 吸收
+ *    整行剩余宽度（width 作最小宽度），适合"尾部列占满、前面的列贴合内容"；
+ *  - autoFitWidths：整表快捷方式，等价于所有未显式指定 widthMode 的列都用 fit；
  *  - scrollX：包一层 ScrollBox 支持横向滚动——内容超出视口时自动出现可
  *    拖动的横向滚动条（轨道点击/滑块拖动/Shift+滚轮均可），未超出时隐藏。
  *
@@ -42,19 +44,31 @@ const HSCROLL_STEP = 8;
 /** 滚轮每档纵向移动的行数（1 档 1 行太慢，长列表滚起来吃力） */
 const VSCROLL_STEP = 3;
 
+/** 列宽模式：fixed=固定 width；fit=按内容测量自适应；flex=吸收整行剩余宽度。 */
+export type ColumnWidthMode = "fixed" | "fit" | "flex";
+
 /** 一个列定义。 */
 export interface TableColumn<R> {
   key: string;
   /** 表头文案（已翻译） */
   label: string;
-  /** 列宽（字符数）；autoFitWidths 时仅作为测量不足时的保底值 */
-  width: number;
+  /** 列宽模式（默认 "fixed"，整表 autoFitWidths 时默认 "fit"） */
+  widthMode?: ColumnWidthMode;
+  /** 列宽（字符数）：fixed 模式的固定宽度；flex 模式的最小宽度（防窄终端下被压没）。
+   *  fit 模式忽略（改由内容测量）；缺省时退化为 AUTO_FIT_MIN_WIDTH */
+  width?: number;
   render: (row: R) => ReactNode;
   /** 单元格前景色覆盖（用于高亮可更新版本、管理器专属色等），返回颜色串；
    *  命中时优先于光标行/悬浮行的默认前景色，行背景高亮不受影响 */
   fgOverride?: (row: R) => string | undefined;
-  /** autoFitWidths 时本列宽度上限，覆盖全局默认 */
+  /** fit 模式本列宽度上限，覆盖全局默认 */
   maxColumnWidth?: number;
+}
+
+/** 已解析出实际列宽的列定义（内部用）。 */
+interface LaidColumn<R> extends TableColumn<R> {
+  mode: ColumnWidthMode;
+  width: number;
 }
 
 export interface PackageTableProps<R> {
@@ -71,7 +85,8 @@ export interface PackageTableProps<R> {
   visibleRows?: number;
   /** 空表格时显示的提示文案（字符串或富节点，如加载动画） */
   emptyHint?: ReactNode;
-  /** 按内容自动测量列宽（显示宽度，CJK 计 2 列），超出 maxColumnWidth 上限 */
+  /** 整表列宽自适应：未显式指定 widthMode 的列一律按内容测量（显示宽度，CJK 计 2 列），
+   *  超出 maxColumnWidth 上限 */
   autoFitWidths?: boolean;
   /** 相邻列之间的间隔（字符数，默认 2） */
   columnGap?: number;
@@ -99,6 +114,26 @@ function renderText(node: ReactNode): string | null {
     return out;
   }
   return null;
+}
+
+/** 按表头与全部行内容（显示宽度）测出列宽，夹到 [AUTO_FIT_MIN_WIDTH, maxColumnWidth]。 */
+function measureColumnWidth<R>(col: TableColumn<R>, rows: R[]): number {
+  let max = dispWidthStr(col.label);
+  for (const row of rows) {
+    const text = renderText(col.render(row));
+    if (text !== null) max = Math.max(max, dispWidthStr(text));
+  }
+  const cap = col.maxColumnWidth ?? AUTO_FIT_MAX_WIDTH;
+  return Math.min(cap, Math.max(AUTO_FIT_MIN_WIDTH, max + AUTO_FIT_PADDING));
+}
+
+/** 表头/单元格文本的宽度 props：flex 列交给 Yoga 吸收剩余宽度（width 作最小宽度）。 */
+function textWidthProps<R>(col: LaidColumn<R>): {
+  width?: number;
+  flexGrow?: number;
+  minWidth?: number;
+} {
+  return col.mode === "flex" ? { flexGrow: 1, minWidth: col.width } : { width: col.width };
 }
 
 export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
@@ -163,19 +198,14 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
     );
   }
 
-  // autoFitWidths：按表头 + 全部行内容（显示宽度）取 max，再夹到 [min, max]
-  const fitColumns: TableColumn<R>[] = autoFitWidths
-    ? columns.map((col) => {
-        let max = dispWidthStr(col.label);
-        for (const row of rows) {
-          const text = renderText(col.render(row));
-          if (text !== null) max = Math.max(max, dispWidthStr(text));
-        }
-        const cap = col.maxColumnWidth ?? AUTO_FIT_MAX_WIDTH;
-        const width = Math.min(cap, Math.max(AUTO_FIT_MIN_WIDTH, max + AUTO_FIT_PADDING));
-        return { ...col, width };
-      })
-    : columns;
+  // 列宽：fit 列按表头 + 全部行内容（显示宽度）取 max 后夹到 [min, max]；
+  // flex 列不测量（实际宽度由 Yoga 分配，width 只作最小宽度）；其余按固定宽度。
+  const laidColumns: LaidColumn<R>[] = columns.map((col) => {
+    const mode = col.widthMode ?? (autoFitWidths ? "fit" : "fixed");
+    const width =
+      mode === "fit" ? measureColumnWidth(col, rows) : (col.width ?? AUTO_FIT_MIN_WIDTH);
+    return { ...col, mode, width };
+  });
 
   // 计算滚动窗口：让光标行始终可见
   const viewHeight = visibleRows > 0 ? visibleRows : Math.max(rows.length, 1);
@@ -189,10 +219,10 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
   const visible = rows.slice(windowStart, windowEnd);
 
   // 表头
-  const headerCells: ReactNode[] = fitColumns.map((col) => (
+  const headerCells: ReactNode[] = laidColumns.map((col) => (
     <text
       key={`h-${col.key}`}
-      width={col.width}
+      {...textWidthProps(col)}
       fg="#888"
       attributes={TextAttributes.BOLD}
       truncate
@@ -210,22 +240,24 @@ export function PackageTable<R>(props: PackageTableProps<R>): ReactNode {
     // 高亮优先级：光标行 > 鼠标悬浮行 > 无
     const rowBg = isCursor ? "#264f78" : hoverIndex === globalIndex ? "#333" : "transparent";
 
-    const cells = fitColumns.map((col, ci) => {
+    // 单元格直接是 <text>（表头同构），列宽 props 由 textWidthProps 统一给出；
+    // 不要再用 <box> 包一层，否则 flex 列会退化成"盒子吸收剩余宽度、文本只有内容宽"
+    const cells = laidColumns.map((col, ci) => {
       const content = col.render(row);
       const colorOverride = col.fgOverride?.(row);
       const cellFg = colorOverride ?? (isCursor ? "#fff" : "#ddd");
-      const display =
-        ci === checkColumnIndex ? (
-          <text width={col.width} fg={cellFg} truncate wrapMode="none">
-            {isChecked ? "✓ " : "  "}
-            {content}
-          </text>
-        ) : (
-          <text width={col.width} fg={cellFg} truncate wrapMode="none">
-            {content}
-          </text>
-        );
-      return <box key={`c-${col.key}`}>{display}</box>;
+      return (
+        <text
+          key={`c-${col.key}`}
+          {...textWidthProps(col)}
+          fg={cellFg}
+          truncate
+          wrapMode="none"
+        >
+          {ci === checkColumnIndex ? (isChecked ? "✓ " : "  ") : null}
+          {content}
+        </text>
+      );
     });
 
     return (
