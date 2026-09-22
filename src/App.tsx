@@ -339,16 +339,12 @@ export function App() {
             key: "manager",
             label: t("col.manager"),
             widthMode: "fit",
-            // "全部"视图合并显示时统一显示代表名（npm）；代表视图显示真实
-            // 管理器（npm/pnpm/bun），否则该列没有区分度
-            render: (r) =>
-              isAll
-                ? reg.rowManagerDisplayName(r.managerName)
-                : reg.managerDisplayName(r.managerName),
-            // 管理器专属色（见 manager-colors.ts）：颜色随"显示的规范名"走——
-            // 全部视图合并显示时 pnpm/bun 显示为 npm，颜色也统一为 npm 色。
-            fgOverride: (r) =>
-              managerColor(isAll ? reg.displayManagerName(r.managerName) : r.managerName),
+            // 管理器列一律显示"本源"管理器：合并显示只影响顶栏与行 key 去重，
+            // 不改这里的展示名——pnpm/bun 的包仍标 pnpm/bun，否则不知道装在哪
+            render: (r) => reg.managerDisplayName(r.managerName),
+            // 管理器专属色（见 manager-colors.ts）：颜色跟随真实管理器 name，
+            // 与展示的本源名一致
+            fgOverride: (r) => managerColor(r.managerName),
           },
         ]
       : [

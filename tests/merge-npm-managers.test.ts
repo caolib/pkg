@@ -3,7 +3,8 @@
  *
  * 设置开启后,首页"全部"视图里同 registry 的 npm/pnpm/bun 行合并显示为 npm:
  *  - mergedManagerNames: 可用成员(除代表)映射到代表名
- *  - buildInstalledRows: 行 key 前缀用代表名,同包名跨源去重(保留先出现的 npm)
+ *  - buildInstalledRows: 行 key 前缀用代表名,同包名跨源去重(保留先出现的 npm);
+ *    行上的 managerName 仍是"本源"管理器(管理器列据此显示 pnpm/bun)
  *  - buildStripItems: 被并入的管理器不出现在顶栏
  *  - findSelected: 行 key 前缀是代表名时,能回退定位到实际所属成员(操作仍用
  *    真实管理器执行)
@@ -69,9 +70,17 @@ test("合并 npm 系:mergedManagerNames 与顶栏/行合并", () => {
     `全部行 key 前缀为 npm:,实际 [${rows.map((r) => r.key).join(",")}]`,
   );
   check(rows.length === 3, `npm 的 a/x + bun 的 b,pnpm 的 a 与 npm 去重,共 3 行,实际 ${rows.length}`);
+  // 合并只影响顶栏与行 key 去重;管理器列要显示"本源"管理器(表格渲染读 managerName),
+  // 否则用户只知道"npm"而不知道包其实装在 pnpm/bun 下
+  const bunRow = rows.find((r) => r.pkg.name === "b")!;
+  check(bunRow.managerName === "bun", `bun 的包在行上仍是 managerName=bun(实际 ${bunRow.managerName})`);
   check(
-    reg.rowManagerDisplayName("pnpm") === "npm" && reg.rowManagerDisplayName("winget") === "winget",
-    "管理器列展示名:pnpm→npm,非 npm 系不受影响",
+    reg.managerDisplayName(bunRow.managerName) === "bun",
+    "管理器列展示名跟随真实管理器(pnpm/bun 不显示为代表名 npm)",
+  );
+  check(
+    rows.filter((r) => r.pkg.name === "a").every((r) => r.managerName === "npm"),
+    "同包名跨源去重保留 npm 自己的行",
   );
 
   // bun 独有的 b:key 前缀是 npm,findSelected 应回退定位到 bun 状态

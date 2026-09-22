@@ -184,6 +184,13 @@ src/
   列宽由 `PackageTable` 的 `measureColumnWidth` 每帧测量（fit 列）与 Yoga flexGrow
   （flex 列）决定，**不要**再给这些列写固定宽度。回归测试见
   `tests/package-table-widths.test.tsx`。
+- **合并 npm 系（`merge_npm_managers`）只影响"入口与去重"，不影响"行归属"**：
+  `mergedManagerNames()` 把 pnpm/bun 映射到代表 npm，用于 ①顶栏隐藏被并入的按钮、
+  ②代表视图（npm 按钮）变成全组视图、③"全部"视图行 key 前缀统一为代表名以跨源去重
+  （同包名保留先出现的 npm 行）。**行上的 `managerName` 始终是真实管理器**：管理器列
+  用 `reg.managerDisplayName(r.managerName)` + `managerColor(r.managerName)`
+  显示本源名与本源专属色——pnpm/bun 的包就标 pnpm/bun，**不得**跟着代表名走
+  （否则看不出包装在哪）。回归测试见 `tests/merge-npm-managers.test.ts`。
 - **OpenTUI 渲染特性约束**：
   - `<text>` **不支持** `backgroundColor`（用 `bg`），**不支持** ellipsis；超宽用 `truncate`
     + `width`（布局宽度）裁切。

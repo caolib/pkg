@@ -197,11 +197,6 @@ export class ManagerRegistry {
     return map;
   }
 
-  /** 合并显示开启且 name 被并入代表时返回代表名，否则原样返回。 */
-  displayManagerName(name: string): string {
-    return this.mergedManagerNames().get(name) ?? name;
-  }
-
   /** 合并显示时，若 name 是某 registry 组的代表（npm），返回该组全部可用成员
    *  （代表在前，其余按注册序）；name 不是代表或合并未开启时返回 null。
    *  用于把代表视图（顶栏 npm 按钮）做成"全组视图"。 */
@@ -215,11 +210,6 @@ export class ManagerRegistry {
       if (rep === repName) members.push(this.states.get(member)!);
     }
     return members.length > 0 ? [repSt, ...members] : null;
-  }
-
-  /** 首页表格管理器列的展示名：合并显示时并入代表的管理器统一显示代表名。 */
-  rowManagerDisplayName(name: string): string {
-    return this.managerDisplayName(this.displayManagerName(name));
   }
 
   /** 检测所有管理器可用性。 */
