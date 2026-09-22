@@ -31,7 +31,7 @@ test("设置界面鼠标交互(点击行/滚轮滚动)", async () => {
     console.log("  ✓", msg);
   };
 
-  // 构造即填充全部已注册管理器(行序列:管理器 + 语言 + 自动检查更新)
+  // 构造即填充全部已注册管理器(行序列:管理器 + 语言 + 合并 npm 系)
   const reg = new ManagerRegistry();
   let closed: string | null = null;
 
@@ -58,19 +58,19 @@ test("设置界面鼠标交互(点击行/滚轮滚动)", async () => {
       await pump(setup);
     }
     const frameBottom = setup.captureCharFrame();
-    check(frameBottom.includes("自动检查更新"), "滚轮滚动后窗口移到列表底部");
+    check(frameBottom.includes("合并 npm 系"), "滚轮滚动后窗口移到列表底部");
 
-    // 点击"自动检查更新"行 → 切换开关(不关闭界面)
-    const autoLine = frameBottom.split("\n").find((l) => l.includes("自动检查更新"));
-    check(autoLine !== undefined, "找到自动检查更新行");
-    const autoY = autoLine !== undefined ? frameBottom.split("\n").indexOf(autoLine) : -1;
-    const before = reg.autoCheckUpdates;
-    if (autoY >= 0) {
+    // 点击"合并 npm 系"行 → 切换开关(不关闭界面)
+    const mergeLine = frameBottom.split("\n").find((l) => l.includes("合并 npm 系"));
+    check(mergeLine !== undefined, "找到合并 npm 系行");
+    const mergeY = mergeLine !== undefined ? frameBottom.split("\n").indexOf(mergeLine) : -1;
+    const before = reg.mergeNpmManagers;
+    if (mergeY >= 0) {
       await act(async () => {
-        await setup.mockMouse.click(10, autoY);
+        await setup.mockMouse.click(10, mergeY);
       });
       await pump(setup);
-      check(reg.autoCheckUpdates === !before, "点击自动检查更新行切换开关");
+      check(reg.mergeNpmManagers === !before, "点击合并 npm 系行切换开关");
     }
 
     // 滚轮向上滚回顶部 → 回到初始窗口

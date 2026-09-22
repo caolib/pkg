@@ -24,7 +24,6 @@ import {
   getManagerIcons,
   getManagerNames,
   getUserManagerChoices,
-  getAutoCheckUpdates,
   getMergeNpmManagers,
   loadConfig,
   saveConfig,
@@ -99,8 +98,6 @@ export class ManagerRegistry {
   searchKeybindings: Record<string, string> = defaultSearchKeybindings();
   managerIcons: Record<string, string> = {};
   managerNames: Record<string, string> = {};
-  /** 打开首页时自动检查更新(默认开启,可在设置界面关闭)。 */
-  autoCheckUpdates = true;
   /** 首页合并显示同 registry 的 npm 系管理器(npm/pnpm/bun 合并为 npm,默认关闭)。 */
   mergeNpmManagers = false;
   config: Config = {};
@@ -137,7 +134,6 @@ export class ManagerRegistry {
     this.searchKeybindings = getSearchKeybindings(this.config);
     this.managerIcons = getManagerIcons(this.config);
     this.managerNames = getManagerNames(this.config);
-    this.autoCheckUpdates = getAutoCheckUpdates(this.config);
     this.mergeNpmManagers = getMergeNpmManagers(this.config);
     const userChoices = getUserManagerChoices(this.config);
     for (const name of this.disabledManagers) {
@@ -346,7 +342,6 @@ export class ManagerRegistry {
       keybindings: disk.keybindings ?? this.keybindings,
       search_keybindings: disk.search_keybindings ?? this.searchKeybindings,
       language: this.config.language || "",
-      auto_check_updates: this.autoCheckUpdates,
       merge_npm_managers: this.mergeNpmManagers,
       manager_icons: { ...this.defaultManagerIcons(), ...this.managerIcons },
       manager_names: { ...this.defaultManagerNames(), ...this.managerNames },

@@ -186,8 +186,9 @@ export function App() {
       // 避免先用 FALLBACK_BACKGROUND 渲染一帧深色再切到真实背景的闪烁
       getTerminalBackground(renderer);
       rerender();
-      // 打开首页自动检查更新可在设置中关闭;关闭时只加载已安装列表
-      await loadCurrentView(undefined, { skipOutdated: !reg.autoCheckUpdates });
+      // 首页加载：installed + outdated 一起拉（旧版可按设置跳过 outdated，
+      // 结果"最新版本"列整列 "-"，看起来像坏了——已去掉该开关）
+      await loadCurrentView();
     })();
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -218,9 +219,8 @@ export function App() {
   // 数据加载
   // ------------------------------------------------------------------
   /** 加载当前视图数据。name 显式传参:switchManager 等调用方在 setState
-   *  之后闭包里的 current 仍是旧值,直接读闭包会加载错视图(见 switchManager)。
-   *  opts.skipOutdated: 跳过"可更新"检查(设置里关闭"打开首页自动检查更新"时用)。 */
-  async function loadCurrentView(name?: string, opts?: { skipOutdated?: boolean }) {
+   *  之后闭包里的 current 仍是旧值,直接读闭包会加载错视图(见 switchManager)。 */
+  async function loadCurrentView(name?: string) {
     rerender();
     const managers = reg.activeManagers(name ?? current);
     // 先清未加载管理器的 installed
@@ -244,24 +244,24 @@ export function App() {
         rerender();
       }),
     );
-    // 逐个检查 outdated，完成即刷新
-    if (!opts?.skipOutdated) {
-      await Promise.all(
-        managers.map(async (st) => {
-          if (st.loadedOutdated) return;
-          try {
-            st.outdated = await st.instance.listOutdated();
-            st.outdatedMap = new Map(st.outdated.map((p) => [p.name, p]));
-            st.loadedOutdated = true;
-          } catch {
-            st.outdated = [];
-            st.outdatedMap = new Map();
-            st.loadedOutdated = true;
-          }
-          rerender();
-        }),
-      );
-    }
+    // 逐个检查 outdated，完成即刷新。**必须无条件检查**：查不到最新版本时
+    // "最新版本"列整列是 "-"，看着像坏了（1.4.0 曾按配置项 auto_check_updates
+    // 跳过，用户装上后以为程序出错）。手动重查仍可用 c 键（reloadOutdated）。
+    await Promise.all(
+      managers.map(async (st) => {
+        if (st.loadedOutdated) return;
+        try {
+          st.outdated = await st.instance.listOutdated();
+          st.outdatedMap = new Map(st.outdated.map((p) => [p.name, p]));
+          st.loadedOutdated = true;
+        } catch {
+          st.outdated = [];
+          st.outdatedMap = new Map();
+          st.loadedOutdated = true;
+        }
+        rerender();
+      }),
+    );
     setLoadingHint(false);
   }
 

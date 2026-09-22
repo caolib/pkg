@@ -9,7 +9,7 @@
 渲染核心 + TypeScript/React 绑定），运行于 **Bun**。
 
 当前为**核心版**：已迁移主界面（已安装列表 + 批量更新/卸载 + 本地过滤 + 仅显示
-可更新）、全局搜索、包详情、确认对话框、设置界面（快捷键/图标/语言，写回
+可更新）、全局搜索、包详情、确认对话框、设置界面（管理器启用/语言/合并 npm 系，写回
 `~/.config/pkg-tui/config.json`），以及全部 8 个后端（npm/pnpm/bun/winget/scoop/cargo/choco/uv）、
 i18n（中/英）、配置持久化、快捷键配置。
 
@@ -137,7 +137,7 @@ src/
     ├── OutputScreen.tsx   # 命令输出（安装/更新/卸载执行日志：左条目列表 + 右 sticky 输出区，
     │                      #   运行中实时追加并跟随底部，↑↓ 切条目，PgUp/PgDn/Home/End 滚动；
     │                      #   p 终止运行中条目，r 重试/a 管理员重试 failed 条目，底栏上下文提示）
-    └── SettingsScreen.tsx # 设置（快捷键/图标/语言，保存回 config.json；自建列表交互
+    └── SettingsScreen.tsx # 设置（管理器启用/语言/合并 npm 系，保存回 config.json；自建列表交互
                            #   同 PackageTable，见设置界面鼠标行为段落与 settings-screen-mouse 测试）
 ```
 
@@ -311,6 +311,11 @@ src/
     驱动源：`trackOpLogProgress()`（opLog 有运行中条目=安装/更新/卸载）与主页
     `loadingHint`（首页加载/刷新），共用引用计数防重叠互踩；进程 exit 兜底清除。
     纯交互优化：非 TTY 不写、写入 try/catch——任何失败不得影响主流程。
+- **首页加载必须无条件拉取 outdated**：`App.loadCurrentView` 先并发 `listInstalled`（逐管理器完成即刷新，
+  列表渐进出现），随后并发 `listOutdated` 回填"最新版本"列。**不得**再加"跳过 outdated"的开关
+  （1.4.0 曾按配置项 `auto_check_updates` 在启动时跳过，结果查不到最新版本的包整列显示 `-`，
+  看着像程序坏了——该配置项与设置界面开关已删除）。手动重查用 `c` 键（`reloadOutdated`，
+  只失效 outdated 缓存、不重载 installed）。单管理器失败会被 catch 成"无更新"，不影响其他管理器。
 - **状态刷新**：`ManagerRegistry`（`useRef` 单例）内部是 mutable；数据加载后调 `rerender()`
   强制重渲染，`buildInstalledRows`/`buildStripItems` 每次**直接计算**（不能用 `useMemo` 缓存，
   否则 reg 内部变化不会反映）。

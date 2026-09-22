@@ -41,7 +41,7 @@ export interface SettingsScreenProps {
 }
 
 /** 一行设置项。 */
-type Row = { kind: "mgr"; name: string } | { kind: "lang" } | { kind: "autocheck" } | { kind: "mergenpm" };
+type Row = { kind: "mgr"; name: string } | { kind: "lang" } | { kind: "mergenpm" };
 
 function statusLabel(reg: ManagerRegistry, name: string): string {
   const st = reg.states.get(name);
@@ -77,11 +77,10 @@ export function SettingsScreen(props: SettingsScreenProps) {
   /** 光标驱动的滚动窗口起点(同 PackageTable:行溢出时滚轮/键盘让光标行可见) */
   const windowStartRef = useRef(0);
 
-  // 行序列:各管理器 + 语言 + 自动检查更新 + 合并 npm 系
+  // 行序列:各管理器 + 语言 + 合并 npm 系
   const rows: Row[] = [
     ...reg.names.map((n): Row => ({ kind: "mgr", name: n })),
     { kind: "lang" },
-    { kind: "autocheck" },
     { kind: "mergenpm" },
   ];
 
@@ -148,7 +147,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
   function activate(row: Row) {
     if (row.kind === "mgr") toggleManager(row.name);
     else if (row.kind === "lang") toggleLanguage();
-    else if (row.kind === "autocheck") toggleAutoCheck();
     else if (row.kind === "mergenpm") toggleMergeNpm();
   }
 
@@ -167,11 +165,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
     const next = lang === "zh_CN" ? "en_US" : "zh_CN";
     setLanguage(next);
     setLang(next);
-    rerender();
-  }
-
-  function toggleAutoCheck() {
-    reg.autoCheckUpdates = !reg.autoCheckUpdates;
     rerender();
   }
 
@@ -266,19 +259,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
                   <text width={20} fg="#6cf">
                     {lang === "zh_CN" ? t("settings.lang_zh") : t("settings.lang_en")}
                   </text>
-                </box>
-              );
-            }
-            if (row.kind === "autocheck") {
-              return (
-                <box key="autocheck" flexDirection="row" backgroundColor={bg} {...rowHandlers}>
-                  <text width={22} fg="#888">
-                    {t("settings.auto_check_updates")}
-                  </text>
-                  <text width={10} fg={reg.autoCheckUpdates ? "#8f8" : "#888"}>
-                    {reg.autoCheckUpdates ? t("settings.on") : t("settings.off")}
-                  </text>
-                  <text fg="#888">{t("settings.auto_check_hint")}</text>
                 </box>
               );
             }

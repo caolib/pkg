@@ -134,8 +134,6 @@
   "result.update_failed": "更新 {package} 失败",
   "result.uninstall_failed": "卸载 {package} 失败",
   "binding.check_updates": "检查更新",
-  "settings.auto_check_updates": "自动检查更新",
-  "settings.auto_check_hint": "(打开首页时)",
   "settings.merge_npm": "合并 npm 系",
   "settings.merge_npm_hint": "(首页 npm/pnpm/bun 合并显示为 npm)",
   "settings.on": "开",

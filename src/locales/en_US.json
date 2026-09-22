@@ -140,8 +140,6 @@
   "result.update_failed": "Failed to update {package}",
   "result.uninstall_failed": "Failed to uninstall {package}",
   "binding.check_updates": "Check Updates",
-  "settings.auto_check_updates": "Auto Check Updates",
-  "settings.auto_check_hint": "(on home open)",
   "settings.merge_npm": "Merge npm Family",
   "settings.merge_npm_hint": "(show npm/pnpm/bun as npm on home)",
   "settings.on": "On",
