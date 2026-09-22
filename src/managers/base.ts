@@ -8,6 +8,7 @@
  */
 
 import type { OperationResult, PackageDetail, PackageInfo, SearchResult } from "./types";
+import { parseVersionOutput, runCommand } from "./_cli";
 
 export abstract class PackageManager {
   /** 管理器的唯一标识（如 "npm"）。 */
@@ -67,6 +68,18 @@ export abstract class PackageManager {
    *  默认实现返回 true；子类可覆盖以检测可执行文件是否存在。 */
   async isAvailable(): Promise<boolean> {
     return true;
+  }
+
+  /** 该包管理器自身的版本号（设置界面展示用，如 npm → "11.11.0"）。
+   *  默认执行 `<name> --version` 并从输出里提取版本号（见 _cli.parseVersionOutput，
+   *  各家输出格式不同也都能覆盖）；取不到返回空串。子类可覆盖以换命令。 */
+  async version(): Promise<string> {
+    try {
+      const { stdout, exitCode } = await runCommand(this.name, ["--version"]);
+      return exitCode === 0 ? parseVersionOutput(stdout) : "";
+    } catch {
+      return "";
+    }
   }
 }
 

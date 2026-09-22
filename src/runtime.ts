@@ -53,6 +53,8 @@ export interface ManagerState {
   outdated: PackageInfo[];
   /** outdated 按包名索引，方便快速查找最新版本 */
   outdatedMap: Map<string, PackageInfo>;
+  /** 管理器自身版本号（设置界面展示用）。undefined=未拉取，""=拉取失败 */
+  version?: string;
   loadedInstalled: boolean;
   loadedOutdated: boolean;
 }
@@ -100,6 +102,8 @@ export class ManagerRegistry {
   managerNames: Record<string, string> = {};
   /** 首页合并显示同 registry 的 npm 系管理器(npm/pnpm/bun 合并为 npm,默认关闭)。 */
   mergeNpmManagers = false;
+  /** 正在探测版本号的管理器（避免重复起进程，见 loadVersions）。 */
+  private versionInFlight = new Set<string>();
   config: Config = {};
 
   /** 构造所有已注册管理器的运行时状态。 */
@@ -220,6 +224,34 @@ export class ManagerRegistry {
         st.checked = true;
       }
     }
+  }
+
+  /**
+   * 拉取各管理器自身的版本号（设置界面显示"装了哪个版本"）。
+   *
+   * 只探测可用（已安装）的管理器；结果缓存在 ManagerState.version，重复调用不再
+   * 起进程（除非传 force，如设置界面的"重新检测"）。同一管理器的探测进行中会跳过
+   * （调用方可以放心地反复调，例如每次渲染都调一次来补上"稍后才检测出可用"的管理器）。
+   * 每个管理器完成即回调 onEach 供 UI 逐行刷新。
+   */
+  async loadVersions(opts?: { force?: boolean; onEach?: () => void }): Promise<void> {
+    await Promise.all(
+      this.names.map(async (name) => {
+        const st = this.states.get(name)!;
+        if (!st.available) return;
+        if (this.versionInFlight.has(name)) return;
+        if (!opts?.force && st.version !== undefined) return;
+        this.versionInFlight.add(name);
+        try {
+          st.version = await st.instance.version();
+        } catch {
+          st.version = "";
+        } finally {
+          this.versionInFlight.delete(name);
+        }
+        opts?.onEach?.();
+      }),
+    );
   }
 
   /** 当前视图下"活跃"（可用且未禁用）的管理器列表。

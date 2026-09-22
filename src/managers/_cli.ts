@@ -307,6 +307,27 @@ export function parseJson(text: string): any {
   }
 }
 
+/**
+ * 从 `<cli> --version` 的输出里提取版本号。
+ *
+ * 各管理器的输出格式不统一，逐行找第一个"以数字（或 v+数字）开头"的空白分隔
+ * token 即可全覆盖：
+ *   npm/pnpm/bun/choco  → `11.11.0`
+ *   winget              → `v1.29.290`（去 v 前缀）
+ *   cargo/uv            → `cargo 1.96.0 (30a34c682 2026-05-25)`
+ *   scoop               → 多行，版本号藏在 `Current Scoop version:` 之后的提交行里
+ * 取不到（空输出/格式不认识）返回空串。
+ */
+export function parseVersionOutput(raw: string): string {
+  const text = raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, ""); // 去 ANSI 转义
+  for (const line of text.split(/\r?\n/)) {
+    for (const token of line.trim().split(/\s+/)) {
+      if (/^v?\d[\w.+-]*$/.test(token)) return token.replace(/^v/, "");
+    }
+  }
+  return "";
+}
+
 /** 检查可执行文件是否在 PATH 中（异步）。
  *  Windows 上对 App Execution Alias（如 winget）也能正确识别（经 where 探测）。 */
 export async function isAvailableAsync(executable: string): Promise<boolean> {

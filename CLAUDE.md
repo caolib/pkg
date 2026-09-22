@@ -138,7 +138,8 @@ src/
     │                      #   运行中实时追加并跟随底部，↑↓ 切条目，PgUp/PgDn/Home/End 滚动；
     │                      #   p 终止运行中条目，r 重试/a 管理员重试 failed 条目，底栏上下文提示）
     └── SettingsScreen.tsx # 设置（管理器启用/语言/合并 npm 系，保存回 config.json；自建列表交互
-                           #   同 PackageTable，见设置界面鼠标行为段落与 settings-screen-mouse 测试）
+                           #   同 PackageTable；管理器行显示 名称|自身版本号|检测状态|启用禁用，
+                           #   版本号由 ManagerRegistry.loadVersions 探测，见运行时要点）
 ```
 
 ### 与原项目（old/）的对应
@@ -191,6 +192,14 @@ src/
   用 `reg.managerDisplayName(r.managerName)` + `managerColor(r.managerName)`
   显示本源名与本源专属色——pnpm/bun 的包就标 pnpm/bun，**不得**跟着代表名走
   （否则看不出包装在哪）。回归测试见 `tests/merge-npm-managers.test.ts`。
+- **管理器自身版本号（设置界面）**：`PackageManager.version()`（`base.ts` 默认执行
+  `<name> --version`，用 `_cli.parseVersionOutput` 从输出里取版本号——npm 纯号 /
+  winget `v` 前缀 / cargo·uv 带名字与构建信息 / scoop 多行都能覆盖；取不到返回空串）。
+  `ManagerRegistry.loadVersions({force, onEach})` 只探测 `available` 的管理器，结果缓存在
+  `ManagerState.version`（`undefined`=未拉取 → 行内显示 `…`，`""`=探测失败 → 留空），
+  进行中按名去重，重复调用不会重复起进程；设置界面**每次渲染**调一次（不写依赖数组），
+  以便在"可用性检测"稍后完成时补上漏掉的管理器；`a 重新检测` 用 `force` 刷新。
+  新增后端无需改这里：默认实现即可，输出格式特殊的才覆盖 `version()`。
 - **OpenTUI 渲染特性约束**：
   - `<text>` **不支持** `backgroundColor`（用 `bg`），**不支持** ellipsis；超宽用 `truncate`
     + `width`（布局宽度）裁切。

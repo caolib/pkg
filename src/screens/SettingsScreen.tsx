@@ -16,7 +16,7 @@
 
 import { MouseButton, TextAttributes, type MouseEvent } from "@opentui/core";
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ModalBackdrop } from "../components/ModalBackdrop";
 import { configPath } from "../config";
 import { isTextInputFocused } from "../focus";
@@ -76,6 +76,14 @@ export function SettingsScreen(props: SettingsScreenProps) {
   const [closeHover, setCloseHover] = useState(false);
   /** 光标驱动的滚动窗口起点(同 PackageTable:行溢出时滚轮/键盘让光标行可见) */
   const windowStartRef = useRef(0);
+
+  // 拉取各可用管理器自身的版本号（缓存在 reg 里，已探测过的会被跳过）。
+  // 刻意不写依赖数组：打开设置时"可用性检测"可能还没跑完（available 仍是 false），
+  // 那种管理器会被跳过；每次渲染再调一次即可在检测完成后补上，且不会重复起进程
+  // （loadVersions 自带进行中去重）。每个管理器完成即 rerender，版本号逐行出现。
+  useEffect(() => {
+    reg.loadVersions({ onEach: () => force((n) => n + 1) });
+  });
 
   // 行序列:各管理器 + 语言 + 合并 npm 系
   const rows: Row[] = [
@@ -186,6 +194,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
       autoDisableMissing(name);
       rerender();
     }
+    // "a 重新检测"顺带刷新版本号（可能刚升级过 CLI）
+    await reg.loadVersions({ force: true, onEach: rerender });
   }
 
   /** 检测完成后:未安装的管理器自动禁用。
@@ -240,6 +250,11 @@ export function SettingsScreen(props: SettingsScreenProps) {
                 >
                   <text width={12} fg="#ddd">
                     {row.name}
+                  </text>
+                  {/* 已安装管理器的版本号：未拉取到时显示 …（启动即逐个探测），
+                      探测失败/未安装留空 */}
+                  <text width={16} fg="#6cf">
+                    {st.available ? (st.version === undefined ? "…" : st.version) : ""}
                   </text>
                   <text width={16} fg={statusColor(reg, row.name)}>
                     {statusLabel(reg, row.name)}
