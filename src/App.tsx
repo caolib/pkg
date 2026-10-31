@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isTextInputFocused } from "./focus";
 import { managerColor } from "./manager-colors";
 import { UPDATE_KIND_STYLES } from "./version-diff";
+import { dispWidthStr } from "./width";
 import { getTerminalBackground } from "./terminal-colors";
 import { beginTerminalProgress, trackOpLogProgress } from "./terminal-progress";
 import { t, setLanguage, currentLanguage } from "./i18n";
@@ -135,6 +136,10 @@ export function App() {
   // 顶栏过滤输入框实例：退出过滤模式时需显式 blur（鼠标点击聚焦的情况下
   // focused prop 本就是 false，React 不会 diff 出变化，只能手动 blur）
   const filterInputRef = useRef<InputRenderable | null>(null);
+
+  // 底栏右侧任务状态文本（TaskStatus 上报）：用于算出提示可用的列宽，
+  // 按"整项"从右端隐藏快捷键提示，避免每项都被截一半导致一个都读不懂。
+  const [taskStatusText, setTaskStatusText] = useState<string | null>(null);
 
   // 打开设置时的"已禁用管理器集合"快照：关闭时做脏检测——什么都没改就
   // 不必重查可更新（见 onSettingsClosed）。
@@ -894,6 +899,12 @@ export function App() {
     error: { fg: "#f88", bar: "#e05555" },
   } as const;
   const ts = toastTheme[toast?.severity ?? "info"];
+  // 底栏提示可用列宽：终端宽 - 左右内边距 - 右侧任务状态（含 1 列间隔）。
+  // 状态文本由 TaskStatus 上报，空闲时为 null（提示可用整行）。
+  const hintBudget = Math.max(
+    0,
+    width - 2 - (taskStatusText ? dispWidthStr(taskStatusText) + 1 : 0),
+  );
 
   return (
     <box flexDirection="column" height="100%" width="100%">
@@ -937,13 +948,27 @@ export function App() {
       {/* 底栏：快捷键提示（左）+ 任务执行状态（右，运行中转圈/成功暂显/失败常驻）。
           有任务失败时"查看输出"提示段高亮为正文色（#ddd，同表格正文） */}
       <box flexDirection="row" height={1} backgroundColor="#111" paddingLeft={1} paddingRight={1}>
-        {renderBindingHints(reg.keybindings, filterMode).map((s, i) => (
-          <text key={i} fg={s.highlightOnFailure && taskOutcome === "failed" ? "#ddd" : "#666"}>
-            {i === 0 ? s.text : `   ${s.text}`}
-          </text>
-        ))}
-        <box flexGrow={1} />
-        <TaskStatus onOutcomeChange={setTaskOutcome} clearToken={taskClearToken} />
+        {/* 提示合为一条不换行的富文本：窄屏按整项从右端隐藏（见 fitHintSegments），
+            剩余空间不足时由 text 自身裁切兜底。 */}
+        <text flexGrow={1} flexShrink={1} minWidth={0} height={1} wrapMode="none" fg="#666">
+          {fitHintSegments(renderBindingHints(reg.keybindings, filterMode), hintBudget).map(
+            (s, i) => (
+              <span
+                key={i}
+                fg={s.highlightOnFailure && taskOutcome === "failed" ? "#ddd" : "#666"}
+              >
+                {i === 0 ? s.text : `   ${s.text}`}
+              </span>
+            ),
+          )}
+        </text>
+        <box flexShrink={0} paddingLeft={1}>
+          <TaskStatus
+            onOutcomeChange={setTaskOutcome}
+            onStatusTextChange={setTaskStatusText}
+            clearToken={taskClearToken}
+          />
+        </box>
       </box>
 
       {/* 加载指示器：右下角悬浮（不挡表格），installed+outdated 全部就绪后消失 */}
@@ -1129,4 +1154,20 @@ function renderBindingHints(kb: Record<string, string>, filterMode: boolean): Hi
     { text: seg(t("binding.filter"), kb.toggle_filter_updates ?? "f") },
     { text: "/ 搜索" },
   ];
+}
+
+/** 按可用宽度筛选提示段：只保留完整放得下的项，从右端整项隐藏。
+ *  budget 是 <text> 布局后的实际宽度（未测量时为 0，原样返回）。
+ *  一项都放不下时退回全部，由 text 裁切兜底（极窄终端）。 */
+function fitHintSegments(segs: HintSeg[], budget: number): HintSeg[] {
+  if (budget <= 0) return segs;
+  const out: HintSeg[] = [];
+  let used = 0;
+  for (const s of segs) {
+    const w = dispWidthStr(s.text) + (out.length > 0 ? 3 : 0);
+    if (used + w > budget) break;
+    used += w;
+    out.push(s);
+  }
+  return out.length > 0 ? out : segs;
 }

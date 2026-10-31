@@ -316,6 +316,14 @@ src/
     App——逐行输出会触发整页重渲）。用户按 `o` 进入输出界面时 App 递增
     `clearToken`，TaskStatus 清除已结算的终态（视为已知晓结果，高亮随之回落）；
     运行中的批次不受影响，结束后仍正常结算。
+  - **底栏快捷键提示窄屏按整项隐藏**：提示是**一条**不换行的富文本（各段用
+    `<span>` 保色），右侧 `TaskStatus` 用 `flexShrink={0}` 固定不被挤掉。App 用
+    终端宽 - 左右内边距 - 任务状态宽（`TaskStatus` 经 `onStatusTextChange` 上报，
+    宽度按 `dispWidthStr` 算，含 1 列间隔）得到预算，`fitHintSegments` 只保留
+    完整放得下的项，从右端整项隐藏——不要改回让每个提示各自压缩/截断，否则窄屏
+    下所有项都只剩半截、一个都读不懂。回归测试见 `tests/footer-width.test.tsx`。
+    注意 OpenTUI 的 `TextBufferRenderable.onResize` 未调用 `super.onResize`，
+    `<text>` 上的 `onSizeChange` 不会触发，别用它测宽度。
   - **终端标签页转圈（`terminal-progress.ts`）**：耗时任务期间向 stdout 写 Windows
     Terminal OSC 9;4"不确定进度"序列（state=3 转圈），结束写 state=0 清除。两个
     驱动源：`trackOpLogProgress()`（opLog 有运行中条目=安装/更新/卸载）与主页

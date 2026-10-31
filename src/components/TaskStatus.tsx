@@ -24,12 +24,19 @@ export interface TaskStatusProps {
   successVisibleMs?: number;
   /** 终态变化回调（成功/失败/清除）——父组件据此高亮底栏"查看输出"提示 */
   onOutcomeChange?: (outcome: "success" | "failed" | null) => void;
+  /** 当前状态文本（null=不显示）——父组件据此给底栏左侧提示留出宽度 */
+  onStatusTextChange?: (text: string | null) => void;
   /** 递增即清除已结算的终态与隐藏计时器（用户按 o 查看输出=已知晓结果）；
    *  不影响运行中批次的后续结算 */
   clearToken?: number;
 }
 
-export function TaskStatus({ successVisibleMs = 3000, onOutcomeChange, clearToken = 0 }: TaskStatusProps) {
+export function TaskStatus({
+  successVisibleMs = 3000,
+  onOutcomeChange,
+  onStatusTextChange,
+  clearToken = 0,
+}: TaskStatusProps) {
   const [, force] = useState(0);
   const [frame, setFrame] = useState(0);
   const [outcome, setOutcome] = useState<"success" | "failed" | null>(null);
@@ -110,6 +117,22 @@ export function TaskStatus({ successVisibleMs = 3000, onOutcomeChange, clearToke
     );
     return () => clearInterval(tm);
   }, [isRunning]);
+
+  // 状态文本（宽度取第 0 帧，转圈各帧同宽）：上报给父组件，用于给底栏左侧
+  // 快捷键提示留出空间（窄屏按整项隐藏，而不是每项各截一半）。
+  const statusText = isRunning
+    ? `${SPINNER_FRAMES[0]} ${t(runningCount === 1 ? "task.running_1" : "task.running", {
+        count: String(runningCount),
+      })}`
+    : outcome === "success"
+      ? `✓ ${t("task.done")}`
+      : outcome === "failed"
+        ? `✗ ${t("task.failed")}`
+        : null;
+
+  useEffect(() => {
+    onStatusTextChange?.(statusText);
+  }, [statusText, onStatusTextChange]);
 
   if (isRunning) {
     const key = runningCount === 1 ? "task.running_1" : "task.running";
