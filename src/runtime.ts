@@ -59,9 +59,9 @@ export interface ManagerState {
   loadedOutdated: boolean;
 }
 
-/** 表格行（主界面已安装视图）。manager 只在"全部"视图填。 */
+/** 表格行（主界面已安装视图），保留每份安装记录的真实来源。 */
 export interface InstalledRow {
-  /** 行 key：全部视图 "manager:name"，单管理器视图 name */
+  /** 所有视图统一使用真实来源 "manager:name"，同名不同源互不覆盖。 */
   key: string;
   managerName: string;
   pkg: PackageInfo;
@@ -100,7 +100,7 @@ export class ManagerRegistry {
   searchKeybindings: Record<string, string> = defaultSearchKeybindings();
   managerIcons: Record<string, string> = {};
   managerNames: Record<string, string> = {};
-  /** 首页合并显示同 registry 的 npm 系管理器(npm/pnpm/bun 合并为 npm,默认关闭)。 */
+  /** 首页合并 npm 系管理器入口，安装记录仍按真实来源分别保留（默认关闭）。 */
   mergeNpmManagers = false;
   /** 正在探测版本号的管理器（避免重复起进程，见 loadVersions）。 */
   private versionInFlight = new Set<string>();
@@ -284,46 +284,20 @@ export class ManagerRegistry {
     st.outdatedMap = new Map();
   }
 
-  /** 为某包名查找其所属管理器与 PackageInfo（用于行选中→详情/操作）。 */
+  /** 按行 key 的真实来源定位包；不回退到其他管理器的同名包。 */
   findSelected(
     current: string,
     key: string,
   ): { manager: PackageManager; state: ManagerState; pkg: PackageInfo } | null {
-    const isAll = current === ALL_MANAGERS;
-    let mgrName: string | null = null;
-    let pkgName: string = key;
-    if (isAll) {
-      const i = key.indexOf(":");
-      if (i < 0) return null;
-      mgrName = key.slice(0, i);
-      pkgName = key.slice(i + 1);
-    } else {
-      mgrName = current;
-    }
-    let st = this.states.get(mgrName!);
+    const i = key.indexOf(":");
+    if (i < 0) return null;
+    const mgrName = key.slice(0, i);
+    const pkgName = key.slice(i + 1);
+    const st = this.activeManagers(current).find((s) => s.name === mgrName);
     if (!st) return null;
-    let inInstalled = st.installed.find((p) => p.name === pkgName);
-    // 合并显示（mergeNpmManagers）下，"全部"视图的 key 前缀与代表视图（npm 按钮
-    // =全组视图）的行都可能实际属于被并入的成员（pnpm/bun）——回退到同 registry
-    // 可用成员中查找，操作仍用真实管理器执行。
-    const mergedView = isAll
-      ? this.mergeNpmManagers
-      : this.mergedGroupMembers(mgrName!) !== null;
-    if (!inInstalled && mergedView && st.instance.registry) {
-      for (const other of this.states.values()) {
-        if (other === st) continue;
-        if (!other.available || other.disabled) continue;
-        if (other.instance.registry !== st.instance.registry) continue;
-        const hit = other.installed.find((p) => p.name === pkgName);
-        if (hit) {
-          st = other;
-          inInstalled = hit;
-          break;
-        }
-      }
-    }
-    const inOutdated = st.outdated.find((p) => p.name === pkgName);
-    const pkg = inInstalled ?? inOutdated;
+    const pkg =
+      st.installed.find((p) => p.name === pkgName) ??
+      st.outdated.find((p) => p.name === pkgName);
     if (!pkg) return null;
     return { manager: st.instance, state: st, pkg };
   }
@@ -402,8 +376,6 @@ export interface InstalledViewOptions {
   /** 本地过滤文本（小写） */
   filterText: string;
   checkedKeys: Set<string>;
-  /** 行 key 前缀取 manager 名（全部视图） */
-  isAll: boolean;
 }
 
 /** 根据缓存构造已安装表格行列表（含过滤、最新版本回填、勾选）。 */
@@ -412,14 +384,8 @@ export function buildInstalledRows(
   opts: InstalledViewOptions,
 ): InstalledRow[] {
   const managers = reg.activeManagers(opts.current);
-  // 合并映射在"全部"视图与代表视图（npm 按钮=全组视图）下都用于跨源去重；
-  // 前者还把行 key 前缀统一为代表名。普通单管理器视图不合并。
-  const merged =
-    opts.isAll || reg.mergedGroupMembers(opts.current) ? reg.mergedManagerNames() : null;
   const rows: InstalledRow[] = [];
   for (const st of managers) {
-    // 合并显示时，被并入代表的管理器行归到代表 key 前缀下（key 去重后只保留先出现的行）
-    const keyPrefix = merged?.get(st.name) ?? st.name;
     const loading = !st.loadedInstalled;
     for (const pkg of st.installed) {
       const outdatedInfo = st.outdatedMap.get(pkg.name);
@@ -439,7 +405,7 @@ export function buildInstalledRows(
           continue;
       }
       rows.push({
-        key: opts.isAll ? `${keyPrefix}:${pkg.name}` : pkg.name,
+        key: `${st.name}:${pkg.name}`,
         managerName: st.name,
         pkg,
         loading,
@@ -448,11 +414,6 @@ export function buildInstalledRows(
         updateKind: up ? classifyUpdate(pkg.version, latestVer) : null,
       });
     }
-  }
-  // 合并显示时同 registry 多源行同 key（代表:包名），保留先出现者（npm 系按注册序 npm 在前）
-  if (merged && merged.size > 0) {
-    const seen = new Set<string>();
-    return rows.filter((r) => (seen.has(r.key) ? false : (seen.add(r.key), true)));
   }
   return rows;
 }

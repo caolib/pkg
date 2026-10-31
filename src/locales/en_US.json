@@ -141,7 +141,7 @@
   "result.uninstall_failed": "Failed to uninstall {package}",
   "binding.check_updates": "Check Updates",
   "settings.merge_npm": "Merge npm Family",
-  "settings.merge_npm_hint": "(show npm/pnpm/bun as npm on home)",
+  "settings.merge_npm_hint": "(merge tabs, keep installs per source)",
   "settings.on": "On",
   "settings.off": "Off",
   "button.install": "Install",

@@ -67,7 +67,6 @@ const baseOpts = {
   filterUpdates: false,
   filterText: "",
   checkedKeys: new Set<string>(),
-  isAll: true,
 };
 
 test("buildInstalledRows：有更新按跨度定档", () => {

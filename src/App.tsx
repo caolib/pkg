@@ -139,6 +139,7 @@ export function App() {
   // 打开设置时的"已禁用管理器集合"快照：关闭时做脏检测——什么都没改就
   // 不必重查可更新（见 onSettingsClosed）。
   const settingsDisabledSnapshotRef = useRef<Set<string>>(new Set());
+  const settingsMergeSnapshotRef = useRef(false);
 
   /** 退出过滤输入模式：同步 state 与渲染器真实焦点，交还表格。 */
   function exitFilterMode() {
@@ -297,7 +298,6 @@ export function App() {
     filterUpdates,
     filterText: filterText.trim().toLowerCase(),
     checkedKeys,
-    isAll,
   });
 
   // 行数变化时光标不越界
@@ -341,7 +341,7 @@ export function App() {
             key: "manager",
             label: t("col.manager"),
             widthMode: "fit",
-            // 管理器列一律显示"本源"管理器：合并显示只影响顶栏与行 key 去重，
+            // 管理器列一律显示"本源"管理器：合并只影响入口，保留每份安装记录，
             // 不改这里的展示名——pnpm/bun 的包仍标 pnpm/bun，否则不知道装在哪
             render: (r) => reg.managerDisplayName(r.managerName),
             // 管理器专属色（见 manager-colors.ts）：颜色跟随真实管理器 name，
@@ -389,6 +389,7 @@ export function App() {
       if (!st || !st.available || st.disabled || reg.mergedManagerNames().has(name)) return;
     }
     setCurrent(name);
+    setCheckedKeys(new Set());
     setFilterText("");
     setCursor(0);
     exitFilterMode(); // 切换管理器后回到表格模式
@@ -711,6 +712,7 @@ export function App() {
     }
     if (matchBinding(key, kb.toggle_filter_updates)) {
       setFilterUpdates((v) => !v);
+      setCheckedKeys(new Set());
       setCursor(0);
       key.preventDefault();
       return;
@@ -803,6 +805,7 @@ export function App() {
   function openSettings() {
     exitFilterMode();
     settingsDisabledSnapshotRef.current = new Set(reg.disabledManagers);
+    settingsMergeSnapshotRef.current = reg.mergeNpmManagers;
     pushOverlay({ kind: "settings" });
   }
 
@@ -840,6 +843,9 @@ export function App() {
     // 各管理器 CLI 被无谓地再跑一次。注意 checkAll("a") 自动禁用的管理器
     // 会让集合真变，仍走下面的重载。
     const mgrChanged = !setsEqual(settingsDisabledSnapshotRef.current, result.disabledManagers);
+    const mergeChanged = settingsMergeSnapshotRef.current !== reg.mergeNpmManagers;
+    // 视图范围变化后不保留隐藏选择；仅改合并开关仍无需重查更新。
+    if (mgrChanged || mergeChanged) setCheckedKeys(new Set());
     if (!langChanged && !mgrChanged && !currentDisabled) return;
 
     // 刷新顶栏按钮（可用性/禁用态可能变了）并重载数据。
@@ -900,6 +906,7 @@ export function App() {
         inputRef={filterInputRef}
         onFilterFocus={enterFilterMode}
         onFilter={(v) => {
+          if (v !== filterText) setCheckedKeys(new Set());
           setFilterText(v);
           setCursor(0);
         }}

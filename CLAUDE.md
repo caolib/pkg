@@ -172,7 +172,7 @@ src/
   无更新=默认色，不加符号。符号为空时 `latestCellText` 不追加尾部空格（否则白占 1 列）。
   **App.tsx 两套列集（全部/代表视图 与 单管理器视图）共用 `latestCellText/latestCellColor`
   两个模块级 helper**，改一处必须同步另一处（"用法须全局一致"）。
-  "仅显示可更新"过滤与顶栏计数仍按 `hasUpdate`（字符串不等），**不得**改用 `updateKind`
+  "仅显示可更新"过滤仍按 `hasUpdate`（字符串不等），**不得**改用 `updateKind`
   （仅预发布差异的更新会被漏掉）。回归测试见 `tests/version-diff.test.ts` 与
   `tests/installed-rows-update-kind.test.ts`。
 - **主界面列宽（`widthMode`）**：名称列 `widthMode: "flex"`（吸收整行剩余宽度，`width`
@@ -185,13 +185,14 @@ src/
   列宽由 `PackageTable` 的 `measureColumnWidth` 每帧测量（fit 列）与 Yoga flexGrow
   （flex 列）决定，**不要**再给这些列写固定宽度。回归测试见
   `tests/package-table-widths.test.tsx`。
-- **合并 npm 系（`merge_npm_managers`）只影响"入口与去重"，不影响"行归属"**：
-  `mergedManagerNames()` 把 pnpm/bun 映射到代表 npm，用于 ①顶栏隐藏被并入的按钮、
-  ②代表视图（npm 按钮）变成全组视图、③"全部"视图行 key 前缀统一为代表名以跨源去重
-  （同包名保留先出现的 npm 行）。**行上的 `managerName` 始终是真实管理器**：管理器列
-  用 `reg.managerDisplayName(r.managerName)` + `managerColor(r.managerName)`
-  显示本源名与本源专属色——pnpm/bun 的包就标 pnpm/bun，**不得**跟着代表名走
-  （否则看不出包装在哪）。回归测试见 `tests/merge-npm-managers.test.ts`。
+- **合并 npm 系（`merge_npm_managers`）只合并入口，保留各来源安装记录**：
+  `mergedManagerNames()` 用于隐藏被并入的顶栏按钮，代表视图显示全组记录。
+  "全部"与代表视图中的同名包按真实来源分别保留，各自展示版本、更新状态与管理器颜色。
+  **所有已安装视图行 key 统一为 `真实管理器:包名`**；`findSelected` 只定位 key 指定的
+  活跃来源，不向同 registry 的其他管理器回退，保证详情、勾选、更新/卸载与显示来源一致。
+  切换管理器视图、文本/可更新过滤、合并开关或禁用集合时清空勾选，避免操作隐藏记录；
+  关闭设置无改动则保留勾选，单独改变合并开关无需重查更新。搜索分组/去重机制独立且不变。
+  回归测试见 `tests/merge-npm-managers.test.ts` 与 `tests/installed-selection.test.tsx`。
 - **管理器自身版本号（设置界面）**：`PackageManager.version()`（`base.ts` 默认执行
   `<name> --version`，用 `_cli.parseVersionOutput` 从输出里取版本号——npm 纯号 /
   winget `v` 前缀 / cargo·uv 带名字与构建信息 / scoop 多行都能覆盖；取不到返回空串）。

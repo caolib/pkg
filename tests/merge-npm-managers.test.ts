@@ -1,44 +1,33 @@
-/**
- * "合并 npm 系管理器"(mergeNpmManagers)回归测试。
- *
- * 设置开启后,首页"全部"视图里同 registry 的 npm/pnpm/bun 行合并显示为 npm:
- *  - mergedManagerNames: 可用成员(除代表)映射到代表名
- *  - buildInstalledRows: 行 key 前缀用代表名,同包名跨源去重(保留先出现的 npm);
- *    行上的 managerName 仍是"本源"管理器(管理器列据此显示 pnpm/bun)
- *  - buildStripItems: 被并入的管理器不出现在顶栏
- *  - findSelected: 行 key 前缀是代表名时,能回退定位到实际所属成员(操作仍用
- *    真实管理器执行)
- *
- * 运行:bun test
- */
-import { test } from "bun:test";
+/** 合并 npm 系只合并入口；同名不同源的安装记录、版本和操作身份各自独立。 */
+import { expect, test } from "bun:test";
 import { ManagerRegistry, buildInstalledRows, ALL_MANAGERS } from "../src/runtime";
 import { buildStripItems } from "../src/components/ManagerStrip";
+import type { PackageInfo } from "../src/managers";
 
-function check(cond: boolean, msg: string) {
-  if (!cond) throw new Error(msg);
-  console.log("  ✓", msg);
-}
+const sources = ["npm", "pnpm", "bun"];
+const pkg = (name: string, version = "1.0.0") => ({
+  name,
+  version,
+  display_name: "",
+  latest_version: null,
+  description: "",
+});
 
-/** 构造注册表:仅留 npm(可装 a/x)/pnpm(装 a)/bun(装 b),其余管理器不可用。 */
-function makeReg(merge: boolean): ManagerRegistry {
+function makeReg(merge = true): ManagerRegistry {
   const reg = new ManagerRegistry();
   reg.mergeNpmManagers = merge;
   for (const st of reg.states.values()) {
     st.checked = true;
-    st.available = ["npm", "pnpm", "bun"].includes(st.name);
+    st.available = sources.includes(st.name);
     st.loadedInstalled = true;
+    st.loadedOutdated = true;
   }
-  const pkg = (name: string, version = "1.0.0") => ({
-    name,
-    version,
-    display_name: "",
-    latest_version: null,
-    description: "",
-  });
-  reg.states.get("npm")!.installed = [pkg("a"), pkg("x")];
-  reg.states.get("pnpm")!.installed = [pkg("a")];
-  reg.states.get("bun")!.installed = [pkg("b")];
+  reg.states.get("npm")!.installed = [pkg("opencode", "2.2.5"), pkg("x")];
+  reg.states.get("pnpm")!.installed = [pkg("opencode", "2.1.0")];
+  const bun = reg.states.get("bun")!;
+  bun.installed = [pkg("opencode", "2.2.4"), pkg("b")];
+  bun.outdated = [{ ...pkg("opencode", "2.2.4"), latest_version: "2.2.5" }];
+  bun.outdatedMap = new Map(bun.outdated.map((p) => [p.name, p]));
   return reg;
 }
 
@@ -47,85 +36,118 @@ const baseOpts = {
   filterUpdates: false,
   filterText: "",
   checkedKeys: new Set<string>(),
-  isAll: true,
 };
 
-test("合并 npm 系:mergedManagerNames 与顶栏/行合并", () => {
-  const reg = makeReg(true);
-
-  const merged = reg.mergedManagerNames();
-  check(merged.get("pnpm") === "npm" && merged.get("bun") === "npm", "pnpm/bun 并入代表 npm");
-  check(!merged.has("npm"), "代表 npm 自身不在合并映射中");
-
-  const strip = buildStripItems(reg, ALL_MANAGERS, false);
-  const mgrNames = strip.filter((i) => i.kind === "manager").map((i) => i.name);
-  check(
-    mgrNames.includes("npm") && !mgrNames.includes("pnpm") && !mgrNames.includes("bun"),
-    `顶栏只显示 npm(隐藏 pnpm/bun),实际 [${mgrNames.join(",")}]`,
-  );
-
-  const rows = buildInstalledRows(reg, baseOpts);
-  check(
-    rows.every((r) => r.key.startsWith("npm:")),
-    `全部行 key 前缀为 npm:,实际 [${rows.map((r) => r.key).join(",")}]`,
-  );
-  check(rows.length === 3, `npm 的 a/x + bun 的 b,pnpm 的 a 与 npm 去重,共 3 行,实际 ${rows.length}`);
-  // 合并只影响顶栏与行 key 去重;管理器列要显示"本源"管理器(表格渲染读 managerName),
-  // 否则用户只知道"npm"而不知道包其实装在 pnpm/bun 下
-  const bunRow = rows.find((r) => r.pkg.name === "b")!;
-  check(bunRow.managerName === "bun", `bun 的包在行上仍是 managerName=bun(实际 ${bunRow.managerName})`);
-  check(
-    reg.managerDisplayName(bunRow.managerName) === "bun",
-    "管理器列展示名跟随真实管理器(pnpm/bun 不显示为代表名 npm)",
-  );
-  check(
-    rows.filter((r) => r.pkg.name === "a").every((r) => r.managerName === "npm"),
-    "同包名跨源去重保留 npm 自己的行",
-  );
-
-  // bun 独有的 b:key 前缀是 npm,findSelected 应回退定位到 bun 状态
-  const found = reg.findSelected(ALL_MANAGERS, "npm:b");
-  check(found !== null && found.state.name === "bun", "npm:b 定位到实际管理器 bun(操作用 bun 执行)");
-  const foundNpm = reg.findSelected(ALL_MANAGERS, "npm:a");
-  check(foundNpm !== null && foundNpm.state.name === "npm", "npm:a 仍定位到 npm 自身");
+test("合并 npm 系：顶栏只保留代表入口", () => {
+  const reg = makeReg();
+  expect([...reg.mergedManagerNames()]).toEqual([
+    ["bun", "npm"],
+    ["pnpm", "npm"],
+  ]);
+  const names = buildStripItems(reg, ALL_MANAGERS, false)
+    .filter((i) => i.kind === "manager")
+    .map((i) => i.name);
+  expect(names).toEqual([ALL_MANAGERS, "npm"]);
 });
 
-test("合并 npm 系:代表视图(npm 按钮)=全组视图,操作能定位到真实管理器", () => {
-  const reg = makeReg(true);
+for (const current of [ALL_MANAGERS, "npm"]) {
+  test(`合并 npm 系：${current} 保留同名包的全部来源与真实操作身份`, () => {
+    const reg = makeReg();
+    const rows = buildInstalledRows(reg, { ...baseOpts, current });
+    expect(rows).toHaveLength(5);
+    expect(new Set(rows.map((r) => r.key)).size).toBe(5);
+    expect(
+      rows
+        .filter((r) => r.pkg.name === "opencode")
+        .map((r) => r.managerName)
+        .sort(),
+    ).toEqual([...sources].sort());
+    for (const row of rows) {
+      expect(row.key).toBe(`${row.managerName}:${row.pkg.name}`);
+      const found = reg.findSelected(current, row.key)!;
+      expect(found.manager).toBe(reg.states.get(row.managerName)!.instance);
+      expect(found.pkg).toBe(row.pkg);
+      expect(reg.managerDisplayName(row.managerName)).toBe(row.managerName);
+    }
+    // 缺失源不能回退到另一个管理器，即使另一源确实装了该包。
+    expect(reg.findSelected(current, "npm:b")).toBeNull();
+    expect(reg.findSelected(current, "opencode")).toBeNull();
+  });
 
-  // 代表视图行:跨源去重(npm 的 a/x + bun 的 b,pnpm 的 a 与 npm 去重),key 无前缀
-  const rows = buildInstalledRows(reg, { ...baseOpts, current: "npm", isAll: false });
-  check(rows.length === 3, `去重后 3 行,实际 ${rows.length}`);
-  check(rows.every((r) => !r.key.includes(":")), `行 key 无管理器前缀,实际 [${rows.map((r) => r.key).join(",")}]`);
+  test(`合并 npm 系：${current} 各来源版本、更新状态和过滤互不覆盖`, () => {
+    const reg = makeReg();
+    const opts = { ...baseOpts, current, filterText: "opencode" };
+    const rows = buildInstalledRows(reg, opts);
+    expect(rows).toHaveLength(3);
+    const bySource = new Map(rows.map((r) => [r.managerName, r]));
+    expect(bySource.get("npm")!.pkg.version).toBe("2.2.5");
+    expect(bySource.get("npm")!.latestVersion).toBe("2.2.5");
+    expect(bySource.get("npm")!.hasUpdate).toBe(false);
+    expect(bySource.get("pnpm")!.pkg.version).toBe("2.1.0");
+    expect(bySource.get("bun")!.pkg.version).toBe("2.2.4");
+    expect(bySource.get("bun")!.latestVersion).toBe("2.2.5");
+    expect(bySource.get("bun")!.updateKind).toBe("patch");
+    expect(buildInstalledRows(reg, { ...opts, filterUpdates: true }).map((r) => r.key)).toEqual([
+      "bun:opencode",
+    ]);
+  });
+}
 
-  // bun 独有的 b 在 npm 自己的 installed 里找不到,须回退定位到 bun,
-  // 否则详情/更新/卸载报"无法确定包的管理器"
-  const foundB = reg.findSelected("npm", "b");
-  check(foundB !== null && foundB.state.name === "bun", "代表视图下 b 定位到 bun(操作用 bun 执行)");
-  const foundA = reg.findSelected("npm", "a");
-  check(foundA !== null && foundA.state.name === "npm", "代表视图下 a 仍定位到 npm 自身");
+test("渐进加载：新来源到达只追加记录，已有行身份不被替换", () => {
+  for (const current of [ALL_MANAGERS, "npm"]) {
+    for (const order of [sources, [...sources].reverse()]) {
+      const reg = makeReg();
+      const saved = new Map(sources.map((n) => [n, reg.states.get(n)!.installed]));
+      for (const n of sources) reg.states.get(n)!.installed = [];
+      const seen = new Map<string, PackageInfo>();
+      for (const n of order) {
+        reg.states.get(n)!.installed = saved.get(n)!;
+        const rows = buildInstalledRows(reg, { ...baseOpts, current });
+        for (const [key, record] of seen) {
+          expect(rows.find((r) => r.key === key)?.pkg).toBe(record);
+        }
+        for (const row of rows) seen.set(row.key, row.pkg);
+      }
+      expect(seen.size).toBe(5);
+    }
+  }
 });
 
-test("合并开关关闭(默认):行为不变", () => {
+test("关闭合并：同名包仍分源保留，单管理器视图仅包含自身", () => {
   const reg = makeReg(false);
-  check(reg.mergedManagerNames().size === 0, "mergedManagerNames 为空");
+  expect(reg.mergedManagerNames().size).toBe(0);
+  const names = buildStripItems(reg, ALL_MANAGERS, false)
+    .filter((i) => i.kind === "manager")
+    .map((i) => i.name);
+  expect(names).toEqual([ALL_MANAGERS, "bun", "npm", "pnpm"]);
+  expect(buildInstalledRows(reg, baseOpts)).toHaveLength(5);
+  const rows = buildInstalledRows(reg, { ...baseOpts, current: "npm" });
+  expect(rows.map((r) => r.key)).toEqual(["npm:opencode", "npm:x"]);
+  expect(reg.findSelected("npm", "npm:opencode")?.state.name).toBe("npm");
+  expect(reg.findSelected("npm", "bun:opencode")).toBeNull();
+});
 
-  const strip = buildStripItems(reg, ALL_MANAGERS, false);
-  const mgrNames = strip.filter((i) => i.kind === "manager").map((i) => i.name);
-  check(
-    mgrNames.includes("npm") && mgrNames.includes("pnpm") && mgrNames.includes("bun"),
-    "顶栏仍各自显示 npm/pnpm/bun",
-  );
+test("禁用/不可用来源不参与聚合，也不能被旧 key 操作", () => {
+  const reg = makeReg();
+  reg.states.get("npm")!.disabled = true;
+  reg.states.get("pnpm")!.available = false;
+  expect(buildInstalledRows(reg, baseOpts).map((r) => r.key)).toEqual(["bun:opencode", "bun:b"]);
+  expect(reg.findSelected(ALL_MANAGERS, "npm:opencode")).toBeNull();
+  expect(reg.findSelected(ALL_MANAGERS, "pnpm:opencode")).toBeNull();
+});
 
-  const rows = buildInstalledRows(reg, baseOpts);
-  check(rows.length === 4, `4 行(不去重),实际 ${rows.length}`);
-  check(
-    rows.some((r) => r.key === "pnpm:a") && rows.some((r) => r.key === "bun:b"),
-    "行 key 保留各自管理器前缀",
-  );
-
-  // 代表视图退化为普通单管理器视图:只有 npm 自己的行,无去重副作用
-  const repRows = buildInstalledRows(reg, { ...baseOpts, current: "npm", isAll: false });
-  check(repRows.length === 2, `npm 视图 2 行,实际 ${repRows.length}`);
-  check(reg.findSelected("npm", "a") !== null, "npm 视图操作定位正常");
+test("npm 不可用时仍保留其余合并成员；包名中的冒号不破坏来源解析", () => {
+  const reg = makeReg();
+  reg.states.get("npm")!.available = false;
+  for (const n of ["bun", "pnpm"]) {
+    reg.states.get(n)!.installed.push(pkg("@scope/pkg:variant"));
+  }
+  expect(reg.mergedManagerNames().get("pnpm")).toBe("bun");
+  for (const current of [ALL_MANAGERS, "bun"]) {
+    const rows = buildInstalledRows(reg, { ...baseOpts, current });
+    expect(rows).toHaveLength(5);
+    for (const row of rows) {
+      expect(reg.findSelected(current, row.key)?.pkg).toBe(row.pkg);
+    }
+  }
 });
